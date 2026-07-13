@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["4S7548SA7Q.com.kickstandsup.ksu"],
+        "components": [
+          {
+            "/": "/*",
+            "comment": "Open KSU invite links in the KSU app."
+          }
+        ]
+      }
+    ]
+  }
+}
