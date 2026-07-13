@@ -31,10 +31,18 @@
     <main>
       <div class="eyebrow">Kickstands Up</div>
       <h1>Better rides start here.</h1>
-      <p>
+      <p id="message">
         KSU is building a better way for motorcycle riders to create rides, bring the right people together, and get moving.
       </p>
-      <div class="status">The rider website is coming soon.</div>
+      <div class="status" id="status">The rider website is coming soon.</div>
     </main>
   </body>
+  <script>
+    if (new URLSearchParams(window.location.search).get('i')) {
+      document.title = 'KSU ride invite';
+      document.querySelector('h1').textContent = 'You’re invited to ride.';
+      document.querySelector('#message').textContent = 'Open this invite in KSU to view the protected ride details and respond.';
+      document.querySelector('#status').textContent = 'Open KSU or install the app to continue.';
+    }
+  </script>
 </html>
