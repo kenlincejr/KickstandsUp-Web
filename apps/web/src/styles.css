@@ -168,10 +168,10 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .route-card { transform: none; }
   .pillar-grid, .club-tool-grid, .account-grid, .route-library-grid, .route-detail-grid { grid-template-columns: 1fr; }
   .pillar-grid article { border-right: 0; border-bottom: 1px solid var(--line); }
-  .app-frame { grid-template-columns: 1fr; }
-  .rail { position: static; height: auto; flex-direction: row; align-items: center; gap: 24px; padding: 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .rail nav { display: flex; margin: 0; }
-  .rail nav { overflow-x: auto; }
+  .app-frame { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; width: 100%; min-width: 0; height: auto; flex-direction: row; align-items: center; gap: 24px; padding: 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .rail .wordmark { flex: 0 0 auto; }
+  .rail nav { min-width: 0; flex: 1 1 auto; display: flex; margin: 0; overflow-x: auto; }
   .rail-account { display: none; }
   .planner-grid { grid-template-columns: 1fr; }
   .map-canvas { min-height: 420px; }
