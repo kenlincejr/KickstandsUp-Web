@@ -9,6 +9,8 @@ import { RoutePlannerPage } from '../features/route-planner-page';
 import { PremiumRoute } from '../features/premium-route';
 import { ShopPage } from '../features/shop-page';
 import { AccountPage } from '../features/account-page';
+import { RouteDetailPage } from '../features/route-detail-page';
+import { RouteLibraryPage } from '../features/route-library-page';
 
 export function App() {
   return (
@@ -20,7 +22,9 @@ export function App() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
-          <Route index element={<Navigate to="account" replace />} />
+          <Route index element={<Navigate to="routes" replace />} />
+          <Route path="routes" element={<RouteLibraryPage />} />
+          <Route path="routes/:routeId" element={<RouteDetailPage />} />
           <Route element={<PremiumRoute />}>
             <Route path="planner" element={<RoutePlannerPage />} />
           </Route>

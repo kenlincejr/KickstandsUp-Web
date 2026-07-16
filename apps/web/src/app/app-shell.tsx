@@ -9,7 +9,8 @@ export function AppShell() {
       <aside className="rail">
         <NavLink className="wordmark" to="/">KSU</NavLink>
         <nav aria-label="Workspace">
-          <NavLink to="/app/planner">Route planner</NavLink>
+          <NavLink to="/app/routes">My routes</NavLink>
+          <NavLink to="/app/planner">Plan a route</NavLink>
           <NavLink to="/app/clubs">Club command</NavLink>
           <NavLink to="/app/account">Account</NavLink>
         </nav>

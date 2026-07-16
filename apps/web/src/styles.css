@@ -99,15 +99,44 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .account-grid dd { margin: 0; overflow-wrap: anywhere; }
 .support-id { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .76rem; }
 .account-signout { display: block; margin-top: 24px; }
+.route-library-page { max-width: 1440px; margin: auto; }
+.route-tabs { display: flex; gap: 8px; margin: 34px 0 24px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.route-tabs button { padding: 10px 14px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.route-tabs button.active { border-color: #58604a; background: #25301c; color: var(--ink); }
+.route-state { max-width: 720px; margin-top: 34px; padding: 28px; border: 1px solid var(--line); border-radius: 12px; background: #11150d; }
+.route-state p { color: var(--muted); line-height: 1.6; }
+.route-library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.library-route-card { display: flex; flex-direction: column; min-height: 300px; padding: 26px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(145deg, #192014, #10130d); }
+.route-card-heading { display: flex; justify-content: space-between; gap: 18px; }
+.route-card-heading span, .itinerary-card > span, .route-action-card > span { color: var(--orange); font-size: .72rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.route-card-heading h2 { margin: 8px 0 24px; font-size: 1.7rem; }
+.favorite-button { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.favorite-button.active { color: var(--orange); border-color: #7a673e; }
+.route-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px 0; border-block: 1px solid var(--line); color: var(--muted); font-size: .72rem; }
+.route-facts b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 1.1rem; }
+.library-route-card > p { color: var(--muted); line-height: 1.5; }
+.library-route-card > .secondary-button { width: fit-content; margin-top: auto; }
+.back-link { display: inline-block; margin-bottom: 22px; color: var(--green-bright); }
+.route-detail-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 18px; margin-top: 34px; }
+.itinerary-card, .route-action-card { padding: 28px; border: 1px solid var(--line); border-radius: 14px; background: #11150d; }
+.itinerary-card ol { margin: 24px 0 0; padding: 0; list-style: none; }
+.itinerary-card li { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; min-height: 72px; border-bottom: 1px solid var(--line); }
+.itinerary-card li > b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--orange); color: #171006; font-size: .75rem; }
+.itinerary-card small { display: block; margin-top: 4px; color: var(--green-bright); text-transform: capitalize; }
+.route-action-card h2 { margin: 22px 0 12px; font-size: 2rem; }
+.route-action-card p { color: var(--muted); line-height: 1.6; }
+.handoff-list { display: grid; gap: 10px; margin-top: 24px; }
+.route-provenance { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
 @media (max-width: 900px) {
   .site-header nav > a:not(.nav-cta) { display: none; }
   .hero { grid-template-columns: 1fr; padding: 80px 0; }
   .route-card { transform: none; }
-  .pillar-grid, .club-tool-grid, .account-grid { grid-template-columns: 1fr; }
+  .pillar-grid, .club-tool-grid, .account-grid, .route-library-grid, .route-detail-grid { grid-template-columns: 1fr; }
   .pillar-grid article { border-right: 0; border-bottom: 1px solid var(--line); }
   .app-frame { grid-template-columns: 1fr; }
   .rail { position: static; height: auto; flex-direction: row; align-items: center; gap: 24px; padding: 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
   .rail nav { display: flex; margin: 0; }
+  .rail nav { overflow-x: auto; }
   .rail-account { display: none; }
   .planner-grid { grid-template-columns: 1fr; }
   .map-canvas { min-height: 420px; }
