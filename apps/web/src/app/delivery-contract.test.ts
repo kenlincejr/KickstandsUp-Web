@@ -3,9 +3,14 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const publicDir = resolve(import.meta.dirname, '../../public');
+const repoDir = resolve(import.meta.dirname, '../../../..');
 
 function publicFile(path: string) {
   return readFileSync(resolve(publicDir, path), 'utf8');
+}
+
+function repoFile(path: string) {
+  return readFileSync(resolve(repoDir, path), 'utf8');
 }
 
 describe('Cloudflare delivery contract', () => {
@@ -47,5 +52,23 @@ describe('Cloudflare delivery contract', () => {
     const headers = publicFile('_headers');
     expect(headers).toMatch(/\/\.well-known\/assetlinks\.json[\s\S]*?Content-Type: application\/json/);
     expect(headers).toMatch(/\/\.well-known\/apple-app-site-association[\s\S]*?Content-Type: application\/json/);
+  });
+
+  it('sets privacy headers on Function responses and keeps connection copy distinct', () => {
+    const inviteFunction = repoFile('functions/invite/[token].js');
+    const connectFunction = repoFile('functions/connect/[token].js');
+
+    for (const source of [inviteFunction, connectFunction]) {
+      expect(source).toContain('"Cache-Control": "no-store"');
+      expect(source).toContain('"Content-Security-Policy"');
+      expect(source).toContain('"Permissions-Policy"');
+      expect(source).toContain('"Referrer-Policy": "no-referrer"');
+      expect(source).toContain('"X-Frame-Options": "DENY"');
+      expect(source).toContain('"X-Robots-Tag": "noindex, nofollow"');
+    }
+
+    expect(inviteFunction).toContain('invited to a KSU ride');
+    expect(connectFunction).toContain('A rider wants to connect');
+    expect(connectFunction).not.toContain('invited to a KSU ride');
   });
 });

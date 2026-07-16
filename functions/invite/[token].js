@@ -30,9 +30,13 @@ export function onRequestGet() {
   return new Response(page, {
     headers: {
       "Cache-Control": "no-store",
+      "Content-Security-Policy": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'",
       "Content-Type": "text/html; charset=UTF-8",
+      "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=()",
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "X-Robots-Tag": "noindex, nofollow",
     },
   });
 }
