@@ -1,4 +1,4 @@
-const fallbackRoute = '/app/routes';
+const fallbackRoute = '/app/rides';
 const storageKey = 'ksu.auth.returnTo';
 
 export function safeReturnTo(value: string | null | undefined) {
