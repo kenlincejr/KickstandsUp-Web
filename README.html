@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Kickstands Up website</title>
+  <style>
+    :root { --bg:#f4f1ea; --paper:#fffdf8; --ink:#20241f; --muted:#667064; --line:#d8d7ce; --accent:#b84b21; --accent-2:#245b49; --code:#f0ede4; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#171a17; --paper:#202520; --ink:#eef2ea; --muted:#aeb8aa; --line:#3b443b; --accent:#ff875d; --accent-2:#79c7a8; --code:#171b17; } }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1080px,calc(100% - 32px)); margin:32px auto; padding:clamp(24px,5vw,72px); background:var(--paper); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 60px rgba(0,0,0,.08); }
+    h1,h2,h3,h4 { line-height:1.2; text-wrap:balance; }
+    h1 { margin:0 0 12px; font-size:clamp(2rem,5vw,3.6rem); letter-spacing:-.04em; }
+    h2 { margin:2.4em 0 .65em; padding-bottom:.25em; border-bottom:2px solid var(--line); font-size:clamp(1.45rem,3vw,2rem); }
+    h3 { margin:1.9em 0 .55em; color:var(--accent-2); }
+    p,li { max-width:78ch; }
+    a { color:var(--accent); text-underline-offset:.18em; }
+    strong { color:var(--ink); }
+    code { padding:.1em .35em; background:var(--code); border:1px solid var(--line); border-radius:5px; font-size:.9em; }
+    pre { overflow:auto; padding:18px; background:var(--code); border:1px solid var(--line); border-radius:10px; }
+    pre code { padding:0; border:0; }
+    blockquote { margin:1.5em 0; padding:1em 1.25em; border-left:5px solid var(--accent); background:var(--code); font-size:1.05em; }
+    li + li { margin-top:.35em; }
+    .table-wrap { overflow:auto; margin:1.25em 0; border:1px solid var(--line); border-radius:10px; }
+    table { width:100%; border-collapse:collapse; font-size:.94em; }
+    th,td { padding:.75em .9em; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--code); white-space:nowrap; }
+    tr:last-child td { border-bottom:0; }
+    .toc { margin:2em 0; padding:1.25em 1.5em; background:var(--code); border:1px solid var(--line); border-radius:12px; }
+    .toc h2 { margin:0 0 .6em; padding:0; border:0; font-size:1.15em; }
+    .toc ul { columns:2 280px; margin:0; padding-left:1.25em; }
+    .toc .level-3 { margin-left:1em; font-size:.92em; }
+    .source-note { margin-top:4em; padding-top:1em; border-top:1px solid var(--line); color:var(--muted); font-size:.85em; }
+    @media print { body { background:#fff; } main { width:100%; margin:0; padding:0; border:0; box-shadow:none; } a { color:inherit; } .toc { break-after:page; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="toc" aria-label="Contents"><h2>Contents</h2><ul><li class="level-1"><a href="#kickstands-up-website">Kickstands Up website</a></li><li class="level-2"><a href="#planned-role">Planned role</a></li><li class="level-2"><a href="#local-foundation">Local foundation</a></li></ul></nav>
+    <h1 id="kickstands-up-website">Kickstands Up website</h1>
+    <p>The source for <code>rideksu.com</code>. GitHub owns the repository and review history; the active custom-domain deployment is the Git-connected Cloudflare Pages project <code>kickstandsup-web</code>.</p>
+    <h2 id="planned-role">Planned role</h2>
+    <ul><li>Public HTTPS invite landing pages and redacted ride previews</li><li>App install/fallback guidance</li><li>Marketing and product information</li><li>Supabase-backed rider sign-in and account portal</li><li>Desktop route planner and full-fidelity Club/MC officer tools</li></ul>
+    <p>The existing root landing page remains the production source until the new React/TypeScript application under <code>apps/web</code> is reviewed and the Cloudflare build output is intentionally changed. Authentication, invite-token issuance, capability checks, and privileged mutations remain in Supabase/RLS/Edge boundaries.</p>
+    <h2 id="local-foundation">Local foundation</h2>
+    <pre><code class="language-powershell">npm install
+npm run dev
+npm run typecheck
+npm test
+npm run build</code></pre>
+    <p>See <a href="#">WEB_ARCHITECTURE.md</a> for repository ownership, auth, tier gating, Club/MC permissions, Google Maps boundaries, Realtime sync, URL ownership, and the cross-repository rollout contract.</p>
+    <p class="source-note">Generated from README.md. The Markdown file remains the source of truth.</p>
+  </main>
+</body>
+</html>

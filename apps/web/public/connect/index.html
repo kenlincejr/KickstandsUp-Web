@@ -1,4 +1,4 @@
-const page = `<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -22,19 +22,4 @@ const page = `<!doctype html>
       <p>Install or open KSU to send a trusted-rider request. KSU never shares location automatically.</p>
     </main>
   </body>
-</html>`;
-
-export function onRequestGet() {
-  return new Response(page, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Security-Policy": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'",
-      "Content-Type": "text/html; charset=UTF-8",
-      "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=()",
-      "Referrer-Policy": "no-referrer",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "X-Robots-Tag": "noindex, nofollow",
-    },
-  });
-}
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>KSU Website Preview Configuration Checklist</title>
+  <style>
+    :root { --bg:#f4f1ea; --paper:#fffdf8; --ink:#20241f; --muted:#667064; --line:#d8d7ce; --accent:#b84b21; --accent-2:#245b49; --code:#f0ede4; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#171a17; --paper:#202520; --ink:#eef2ea; --muted:#aeb8aa; --line:#3b443b; --accent:#ff875d; --accent-2:#79c7a8; --code:#171b17; } }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1080px,calc(100% - 32px)); margin:32px auto; padding:clamp(24px,5vw,72px); background:var(--paper); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 60px rgba(0,0,0,.08); }
+    h1,h2,h3,h4 { line-height:1.2; text-wrap:balance; }
+    h1 { margin:0 0 12px; font-size:clamp(2rem,5vw,3.6rem); letter-spacing:-.04em; }
+    h2 { margin:2.4em 0 .65em; padding-bottom:.25em; border-bottom:2px solid var(--line); font-size:clamp(1.45rem,3vw,2rem); }
+    h3 { margin:1.9em 0 .55em; color:var(--accent-2); }
+    p,li { max-width:78ch; }
+    a { color:var(--accent); text-underline-offset:.18em; }
+    strong { color:var(--ink); }
+    code { padding:.1em .35em; background:var(--code); border:1px solid var(--line); border-radius:5px; font-size:.9em; }
+    pre { overflow:auto; padding:18px; background:var(--code); border:1px solid var(--line); border-radius:10px; }
+    pre code { padding:0; border:0; }
+    blockquote { margin:1.5em 0; padding:1em 1.25em; border-left:5px solid var(--accent); background:var(--code); font-size:1.05em; }
+    li + li { margin-top:.35em; }
+    .table-wrap { overflow:auto; margin:1.25em 0; border:1px solid var(--line); border-radius:10px; }
+    table { width:100%; border-collapse:collapse; font-size:.94em; }
+    th,td { padding:.75em .9em; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--code); white-space:nowrap; }
+    tr:last-child td { border-bottom:0; }
+    .toc { margin:2em 0; padding:1.25em 1.5em; background:var(--code); border:1px solid var(--line); border-radius:12px; }
+    .toc h2 { margin:0 0 .6em; padding:0; border:0; font-size:1.15em; }
+    .toc ul { columns:2 280px; margin:0; padding-left:1.25em; }
+    .toc .level-3 { margin-left:1em; font-size:.92em; }
+    .source-note { margin-top:4em; padding-top:1em; border-top:1px solid var(--line); color:var(--muted); font-size:.85em; }
+    @media print { body { background:#fff; } main { width:100%; margin:0; padding:0; border:0; box-shadow:none; } a { color:inherit; } .toc { break-after:page; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="toc" aria-label="Contents"><h2>Contents</h2><ul><li class="level-1"><a href="#ksu-website-preview-configuration-checklist">KSU Website Preview Configuration Checklist</a></li><li class="level-2"><a href="#1-delivery-contract-before-configuration">1. Delivery contract before configuration</a></li><li class="level-2"><a href="#2-cloudflare-pages-preview">2. Cloudflare Pages preview</a></li><li class="level-2"><a href="#3-supabase-public-browser-environment">3. Supabase public browser environment</a></li><li class="level-2"><a href="#4-google-web-oauth">4. Google web OAuth</a></li><li class="level-2"><a href="#5-dedicated-google-maps-browser-credential-c1-gate">5. Dedicated Google Maps browser credential — C1 gate</a></li><li class="level-2"><a href="#6-preview-stop-test">6. Preview stop test</a></li><li class="level-2"><a href="#7-rollback-and-promotion-gate">7. Rollback and promotion gate</a></li><li class="level-2"><a href="#redacted-resource-record">Redacted resource record</a></li></ul></nav>
+    <h1 id="ksu-website-preview-configuration-checklist">KSU Website Preview Configuration Checklist</h1>
+    <p><strong>Prepared:</strong> 2026-07-15 <strong>Scope:</strong> Cloudflare preview only; no production promotion <strong>Source repository:</strong> <code>kenlincejr/KickstandsUp-Web</code></p>
+    <p>This is the external-action gate for the local React website foundation. Do not enter a credential value in source, Git history, screenshots, tickets, or chat. Record resource names and redacted status only.</p>
+    <h2 id="1-delivery-contract-before-configuration">1. Delivery contract before configuration</h2>
+    <ul><li>[ ] Review the exact website commit and confirm the feature branch is pushed.</li><li>[ ] Confirm <code>main</code> and the current <code>rideksu.com</code> production deployment remain unchanged.</li><li>[ ] Re-run <code>npm run typecheck</code>, <code>npm test</code>, and <code>npm run build</code> from the website repository root.</li><li>[ ] Confirm <code>dist/</code> contains <code>_headers</code>, <code>_redirects</code>, legal/support pages, delete-account, invite/connect fallbacks, and both <code>.well-known</code> association documents.</li><li>[ ] Scan source and the built bundle for service-role keys, provider secrets, unrestricted Maps keys, tokens, and private identifiers.</li><li>[ ] Record the known-good production Cloudflare deployment ID before any preview setting changes.</li></ul>
+    <h2 id="2-cloudflare-pages-preview">2. Cloudflare Pages preview</h2>
+    <p>Use a preview branch/deployment. Do not promote it to <code>rideksu.com</code> in this gate.</p>
+    <div class="table-wrap"><table><thead><tr><th>Setting</th><th>Preview value</th></tr></thead><tbody><tr><td>Repository</td><td><code>kenlincejr/KickstandsUp-Web</code></td></tr><tr><td>Root directory</td><td>repository root</td></tr><tr><td>Node</td><td><code>22.13.1</code> or the repository&#39;s compatible Node 22 runtime</td></tr><tr><td>Install/build</td><td><code>npm ci &amp;&amp; npm run build</code></td></tr><tr><td>Output directory</td><td><code>dist</code></td></tr><tr><td>Production branch</td><td>Leave the existing <code>main</code> mapping unchanged</td></tr></tbody></table></div>
+    <ul><li>[ ] Capture the assigned preview origin exactly, for example <code>https://&lt;branch&gt;.&lt;project&gt;.pages.dev</code>.</li><li>[ ] Confirm preview responses use the built <code>_headers</code> and <code>_redirects</code> files.</li><li>[ ] Keep auth, invite, and connect routes <code>no-store</code>; keep token routes <code>no-referrer</code> and <code>noindex</code>.</li></ul>
+    <h2 id="3-supabase-public-browser-environment">3. Supabase public browser environment</h2>
+    <p>Set these for the approved preview environment only:</p>
+    <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Source</th><th>Exposure</th></tr></thead><tbody><tr><td><code>VITE_SUPABASE_URL</code></td><td>KSU Supabase project URL</td><td>Public endpoint</td></tr><tr><td><code>VITE_SUPABASE_PUBLISHABLE_KEY</code></td><td>KSU publishable/anon browser key</td><td>Public constrained key; RLS/RPC remains authoritative</td></tr></tbody></table></div>
+    <ul><li>[ ] Do not add <code>SUPABASE_SERVICE_ROLE_KEY</code> or any server secret to Cloudflare browser variables.</li><li>[ ] Confirm <code>my_effective_capabilities_v1()</code> is deployed and tested before the preview consumes it.</li><li>[ ] Add the exact preview callback to Supabase Auth Redirect URLs: <code>https://&lt;preview-origin&gt;/auth/callback</code>.</li><li>[ ] Add <code>http://localhost:4173/auth/callback</code> only when local OAuth QA is explicitly approved and needed.</li><li>[ ] Leave the production Site URL and production callback policy unchanged during preview setup.</li></ul>
+    <h2 id="4-google-web-oauth">4. Google web OAuth</h2>
+    <p>Supabase brokers Google OAuth. The two callback layers are different and must not be swapped.</p>
+    <ul><li>[ ] Use the dedicated KSU Google Web OAuth client; do not reuse iOS Maps, Navigation, or server-route credentials.</li><li>[ ] Add the exact preview website origin to the Web client&#39;s authorized JavaScript origins: <code>https://&lt;preview-origin&gt;</code>.</li><li>[ ] Keep the Google authorized redirect URI pointed at the Supabase Auth provider callback: <code>https://bwqergdytubvvljguiby.supabase.co/auth/v1/callback</code>.</li><li>[ ] Put <code>https://&lt;preview-origin&gt;/auth/callback</code> in the Supabase Auth redirect allowlist, not in place of the Supabase Google callback.</li><li>[ ] Add <code>https://rideksu.com</code> only during a separately approved production-auth change.</li><li>[ ] Verify signed-out <code>/app/planner?draft=&lt;id&gt;</code> returns to the same path after Google PKCE sign-in.</li><li>[ ] Verify sign-out, canceled OAuth, account switching, and no cross-account access flash.</li></ul>
+    <h2 id="5-dedicated-google-maps-browser-credential-c1-gate">5. Dedicated Google Maps browser credential — C1 gate</h2>
+    <p>Do not create or enable this credential until the user approves the C1 Maps preview resource and billing action.</p>
+    <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Requirement</th></tr></thead><tbody><tr><td><code>VITE_GOOGLE_MAPS_BROWSER_KEY</code></td><td>New browser-only key; exact HTTPS referrers; required browser APIs only</td></tr><tr><td><code>VITE_GOOGLE_MAP_ID</code></td><td>Approved KSU Web Map ID/style; public identifier</td></tr></tbody></table></div>
+    <ul><li>[ ] Restrict HTTP referrers to the exact preview origin path, such as <code>https://&lt;preview-origin&gt;/*</code>.</li><li>[ ] Do not add broad <code>*.pages.dev/*</code>, unrestricted wildcard, iOS bundle, Android package, or server-IP restrictions to this key.</li><li>[ ] Enable only the browser APIs approved for the C1 slice. Maps JavaScript is expected; Places or other APIs require an explicit need and quota.</li><li>[ ] Set API quotas and billing alerts before the first paid browser request. A budget alert does not cap spend.</li><li>[ ] Expand CSP only for the exact Google endpoints required by the implemented map. Preserve attribution.</li><li>[ ] Never copy <code>GOOGLE_ROUTES_SERVER_API_KEY</code>, <code>KSU_GOOGLE_MAPS_IOS_API_KEY</code>, or <code>KSU_GOOGLE_NAVIGATION_IOS_API_KEY</code> into Cloudflare or the web bundle.</li></ul>
+    <h2 id="6-preview-stop-test">6. Preview stop test</h2>
+    <p>Public and delivery:</p>
+    <ul><li>[ ] <code>/</code>, <code>/shop</code>, <code>/privacy</code>, <code>/terms</code>, <code>/support</code>, and <code>/delete-account</code> render correctly at desktop and mobile widths.</li><li>[ ] <code>/invite/&lt;opaque-test-token&gt;</code> and <code>/connect/&lt;opaque-test-token&gt;</code> remain privacy-safe and do not expose protected data.</li><li>[ ] <code>/.well-known/assetlinks.json</code> and <code>/.well-known/apple-app-site-association</code> return JSON content types.</li><li>[ ] Auth callback, token routes, CSP, referrer, cache, robots, and SPA fallback headers match the contract.</li></ul>
+    <p>Authentication and access:</p>
+    <ul><li>[ ] Signed-out protected routes preserve the complete local path, query, and fragment through PKCE.</li><li>[ ] Participant sees authorized route/handoff value but cannot enter planner authoring by URL or stale cache.</li><li>[ ] Premium can enter planner authoring only with a fresh server <code>routes.plan</code> capability.</li><li>[ ] Stale/unavailable projection pauses new paid/provider work and explains that saved/published data is not deleted.</li><li>[ ] Active club navigation appears only from server-confirmed <code>club.read</code>; Premium alone does not grant it.</li><li>[ ] Account switching never displays the prior account&#39;s capabilities.</li><li>[ ] Private <code>capabilities:&lt;user-id&gt;</code> invalidation triggers an authoritative refetch.</li></ul>
+    <p>Operational evidence:</p>
+    <ul><li>[ ] Full Admin shows access contract version, rollout mode, configuration state, projection traffic freshness, aggregate request counts, and revision-row count.</li><li>[ ] Metrics contain no email, stable rider identity, route, location, token, message, or note.</li><li>[ ] Browser console and network failures are reviewed; unavailable data is never rendered healthy.</li></ul>
+    <h2 id="7-rollback-and-promotion-gate">7. Rollback and promotion gate</h2>
+    <ul><li>[ ] Preview rollback means disabling/deleting only the preview deployment and preview environment mapping; production remains on the known-good deployment.</li><li>[ ] A capability incident rolls clients back to non-consumption/shadow behavior. Do not drop additive A1 tables or remove <code>my_effective_entitlement()</code>.</li><li>[ ] Do not promote until the protected planner vertical-slice stop test passes with the restricted browser key and provider-failure fallback.</li><li>[ ] Production promotion requires a separate explicit authorization, reviewed pull request, verified remote <code>main</code>, exact Cloudflare mapping, one deployment, route/header smoke tests, and a recorded rollback deployment.</li></ul>
+    <h2 id="redacted-resource-record">Redacted resource record</h2>
+    <div class="table-wrap"><table><thead><tr><th>Resource</th><th>Identifier</th><th>Preview status</th></tr></thead><tbody><tr><td>Cloudflare Pages project</td><td><code>kickstandsup-web</code></td><td>Approval required</td></tr><tr><td>Supabase project</td><td><code>bwqergdytubvvljguiby</code></td><td>Active; preview callbacks not configured</td></tr><tr><td>Google Web OAuth client</td><td>Redacted client ID</td><td>Preview origin not configured</td></tr><tr><td>Google Maps browser key</td><td>Not created</td><td>C1 approval required</td></tr><tr><td>Google Web Map ID</td><td>Not created/approved</td><td>C1 approval required</td></tr><tr><td>Production domain</td><td><code>rideksu.com</code></td><td>Unchanged</td></tr></tbody></table></div>
+    <p class="source-note">Generated from PREVIEW_CONFIGURATION_CHECKLIST.md. The Markdown file remains the source of truth.</p>
+  </main>
+</body>
+</html>
