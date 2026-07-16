@@ -7,8 +7,8 @@ describe('safeReturnTo', () => {
   });
 
   it('rejects public and external redirect targets', () => {
-    expect(safeReturnTo('https://attacker.example/app/planner')).toBe('/app/account');
-    expect(safeReturnTo('//attacker.example/app/planner')).toBe('/app/account');
-    expect(safeReturnTo('/signin')).toBe('/app/account');
+    expect(safeReturnTo('https://attacker.example/app/planner')).toBe('/app/rides');
+    expect(safeReturnTo('//attacker.example/app/planner')).toBe('/app/rides');
+    expect(safeReturnTo('/signin')).toBe('/app/rides');
   });
 });
