@@ -1,6 +1,6 @@
 # KSU Web Architecture
 
-Status: foundation implemented locally; not deployed  
+Status: foundation implemented locally; not deployed
 Last updated: 2026-07-15
 
 ## Executive decision

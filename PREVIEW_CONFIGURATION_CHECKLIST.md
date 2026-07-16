@@ -1,7 +1,7 @@
 # KSU Website Preview Configuration Checklist
 
-**Prepared:** 2026-07-15  
-**Scope:** Cloudflare preview only; no production promotion  
+**Prepared:** 2026-07-15
+**Scope:** Cloudflare preview only; no production promotion
 **Source repository:** `kenlincejr/KickstandsUp-Web`
 
 This is the external-action gate for the local React website foundation. Do not enter a credential value in source, Git history, screenshots, tickets, or chat. Record resource names and redacted status only.
