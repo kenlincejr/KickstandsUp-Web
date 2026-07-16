@@ -51,7 +51,9 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .auth-card { width: min(560px, 100%); padding: 42px; border: 1px solid var(--line); border-radius: 16px; background: rgba(21, 26, 17, .95); }
 .auth-card h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: .95; letter-spacing: -.055em; margin: 16px 0; }
 .auth-card > p { color: var(--muted); line-height: 1.6; }
-.auth-card .primary-button { width: 100%; margin-top: 22px; }
+.auth-actions { display: grid; gap: 12px; margin-top: 22px; }
+.auth-actions .primary-button, .auth-actions .secondary-button { width: 100%; }
+.auth-provider-note { font-size: .86rem; }
 .notice { padding: 12px; border-left: 3px solid var(--orange); background: rgba(245, 166, 35, .08); }
 .error { color: #ff9a8e !important; }
 .app-frame { min-height: 100vh; display: grid; grid-template-columns: 230px 1fr; background: #0c0f09; }

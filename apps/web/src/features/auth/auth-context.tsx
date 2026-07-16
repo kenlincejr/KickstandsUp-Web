@@ -9,6 +9,7 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   signInWithGoogle: (returnTo?: string) => Promise<void>;
+  signInWithApple: (returnTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -34,26 +35,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const value = useMemo<AuthState>(() => ({
-    configured: Boolean(supabase),
-    loading,
-    session,
-    user: session?.user ?? null,
-    signInWithGoogle: async (returnTo) => {
+  const value = useMemo<AuthState>(() => {
+    const signInWithProvider = async (provider: 'google' | 'apple', returnTo?: string) => {
       if (!supabase) throw new Error('Web sign-in is not configured yet.');
       rememberReturnTo(returnTo);
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider,
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) throw error;
-    },
-    signOut: async () => {
-      if (!supabase) return;
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    },
-  }), [loading, session]);
+    };
+    return {
+      configured: Boolean(supabase),
+      loading,
+      session,
+      user: session?.user ?? null,
+      signInWithGoogle: (returnTo) => signInWithProvider('google', returnTo),
+      signInWithApple: (returnTo) => signInWithProvider('apple', returnTo),
+      signOut: async () => {
+        if (!supabase) return;
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      },
+    };
+  }, [loading, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

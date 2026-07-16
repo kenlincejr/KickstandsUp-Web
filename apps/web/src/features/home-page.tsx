@@ -15,7 +15,7 @@ export function HomePage() {
           <a href="#clubs">Clubs &amp; MCs</a>
           <a href="#planner">Route planner</a>
           <Link to="/shop">Shop</Link>
-          <Link className="nav-cta" to="/signin">Rider sign in</Link>
+          <Link className="nav-cta" to="/signin">Sign in</Link>
         </nav>
       </header>
       <section className="hero">
@@ -23,7 +23,7 @@ export function HomePage() {
           <p className="eyebrow">KICKSTANDS UP</p>
           <h1>Better rides start with one clear plan.</h1>
           <p className="hero-copy">Build the route, rally the right riders, and keep the whole crew in sync—from the big screen to the bike.</p>
-          <div className="button-row"><Link className="primary-button" to="/signin">Open KSU</Link><a className="secondary-button" href="#clubs">See club tools</a></div>
+          <div className="button-row"><Link className="primary-button" to="/signin">Sign in to KSU</Link><a className="secondary-button" href="#clubs">See club tools</a></div>
         </div>
         <div className="route-card" aria-label="Route preview illustration">
           <div className="route-card-top"><span>BLUE RIDGE RUN</span><strong>REV 04</strong></div>
