@@ -47,7 +47,7 @@ async function sessionToken() {
 }
 
 async function edgeRequest<T>(functionName: string, body: Record<string, unknown>, signal?: AbortSignal) {
-  const response = await fetch(`${publicEnv.supabaseUrl}/functions/v1/${functionName}`, {
+  const response = await fetch(`/api/${functionName}`, {
     method: 'POST',
     headers: {
       apikey: publicEnv.supabasePublishableKey,
