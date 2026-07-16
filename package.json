@@ -1,0 +1,23 @@
+{
+  "name": "kickstandsup-web",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @ksu/web",
+    "build": "npm run build --workspace @ksu/web",
+    "typecheck": "npm run typecheck --workspace @ksu/web",
+    "test": "npm run test --workspace @ksu/web"
+  },
+  "engines": {
+    "node": ">=22.13.1"
+  },
+  "packageManager": "npm@10.9.2",
+  "volta": {
+    "node": "22.13.1",
+    "npm": "10.9.2"
+  }
+}

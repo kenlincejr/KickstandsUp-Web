@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "4S7548SA7Q.com.kickstandsup.ksu",
+        "paths": ["/invite/*", "/connect/*"]
+      }
+    ]
+  }
+}
