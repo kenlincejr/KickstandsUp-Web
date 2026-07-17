@@ -41,7 +41,7 @@ function loadMaps(key: string) {
     };
     (window as unknown as Record<string, unknown>)[callback] = finish;
     script.async = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&callback=${callback}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=${callback}`;
     script.onerror = () => reject(new Error('Google Maps could not load. Check the browser-key restrictions.'));
     document.head.append(script);
   });
