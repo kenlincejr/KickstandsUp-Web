@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildGoogleMapsHandoffs } from './google-maps-handoff';
+import { GoogleRouteMap } from './google-route-map';
+import { publicEnv } from '../lib/env';
 import {
   decodePolyline,
   isCompleteDefinition,
@@ -37,29 +39,13 @@ function rideTime(seconds: number) {
   return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 }
 
-function toPlot(points: { latitude: number; longitude: number }[]) {
-  if (!points.length) return '';
-  const latitudes = points.map((point) => point.latitude);
-  const longitudes = points.map((point) => point.longitude);
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-  const latRange = Math.max(.0001, maxLat - minLat);
-  const lngRange = Math.max(.0001, maxLng - minLng);
-  return points.map((point) => {
-    const x = 8 + ((point.longitude - minLng) / lngRange) * 84;
-    const y = 92 - ((point.latitude - minLat) / latRange) * 84;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-}
-
 export function RoutePlannerPage() {
   const [title, setTitle] = useState('My next ride');
   const [points, setPoints] = useState<DraftPoint[]>([blankPoint('origin'), blankPoint('destination')]);
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
+  const [showTraffic, setShowTraffic] = useState(false);
   const [searchingPointId, setSearchingPointId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [busy, setBusy] = useState<'preview' | 'save' | 'place' | null>(null);
@@ -137,6 +123,24 @@ export function RoutePlannerPage() {
     setPoints((current) => [...current.slice(0, -1), blankPoint('stop'), current.at(-1)!]);
   };
 
+  const addMapPoint = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    markChanged();
+    setPoints((current) => {
+      const location = { displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude, source: 'manual' as const, coordinateProvenance: 'ksu_customer' as const };
+      if (!Number.isFinite(current[0]?.latitude)) return current.map((point, index) => index === 0 ? { ...point, ...location } : point);
+      if (!Number.isFinite(current.at(-1)?.latitude)) return current.map((point, index) => index === current.length - 1 ? { ...point, ...location } : point);
+      return current.length >= 27 ? current : [...current.slice(0, -1), { id: crypto.randomUUID(), kind: 'stop' as const, ...location }, current.at(-1)!];
+    });
+  };
+
+  const moveMapPoint = (id: string, { latitude, longitude }: { latitude: number; longitude: number }) => {
+    markChanged();
+    setPoints((current) => current.map((point) => point.id === id ? {
+      ...point, displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude,
+      googlePlaceId: undefined, source: 'manual', coordinateProvenance: 'ksu_customer',
+    } : point));
+  };
+
   const movePoint = (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (index === 0 || index === points.length - 1 || target === 0 || target === points.length - 1) return;
@@ -180,7 +184,6 @@ export function RoutePlannerPage() {
   };
 
   const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
-  const plot = toPlot(plottedPoints);
   const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
 
   return (
@@ -227,14 +230,13 @@ export function RoutePlannerPage() {
           </fieldset>
         </aside>
         <div className="map-canvas route-preview-canvas">
-          {plot ? <div className="route-plot-card">
-            <div><p className="kicker">ROAD SHAPE PREVIEW</p><h2>{preview ? title : 'Choose your endpoints.'}</h2><p>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)} · ${preview.cacheHit ? 'cached preview' : 'calculated now'}` : 'The line will update when each place is resolved. Preview uses Google Routes; your ordered stops remain KSU data.'}</p></div>
-            <svg aria-label="Route shape" preserveAspectRatio="xMidYMid meet" role="img" viewBox="0 0 100 100"><polyline points={plot} /></svg>
-            <div className="route-preview-actions">
-              <span>Route preview powered by Google</span>
-              {handoff ? <a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">Open in Google Maps</a> : null}
-            </div>
-          </div> : <div className="map-placeholder"><p className="kicker">REAL ROUTE WORKSPACE</p><h2>Start with two places.</h2><p>Search for a staging point and destination. Add up to 25 ordered stops, preview the ride, and save it to your KSU roadbook.</p></div>}
+          <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.filter((point): point is DraftPoint & Required<Pick<DraftPoint, 'latitude' | 'longitude'>> => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))} routePoints={plottedPoints} showTraffic={showTraffic} />
+          <div className="map-route-summary">
+            <p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
+            <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Click the map to add a stop. Drag any pin to refine it.'}</strong>
+            <label className="map-toggle"><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Traffic</label>
+            {handoff ? <a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">Open in Google Maps</a> : null}
+          </div>
         </div>
       </div>
       {busy === 'place' ? <div className="planner-busy" aria-live="polite">Resolving place…</div> : null}

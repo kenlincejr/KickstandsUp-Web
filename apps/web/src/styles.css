@@ -108,7 +108,12 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .route-options { display: grid; gap: 10px; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .route-options legend { padding: 0 5px; color: var(--ink); font-size: .78rem; font-weight: 800; }
 .route-options label { display: flex; gap: 9px; align-items: center; font-size: .82rem; }
-.route-preview-canvas { align-items: stretch; }
+.route-preview-canvas { position: relative; align-items: stretch; min-height: 620px; }
+.google-route-map { width: 100%; min-height: 620px; background: #10150d; }
+.map-route-summary { position: absolute; z-index: 1; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 40px); padding: 12px 14px; border: 1px solid #596448; border-radius: 9px; background: rgba(17,22,13,.94); color: var(--ink); box-shadow: 0 8px 26px rgba(0,0,0,.35); }
+.map-route-summary .kicker { margin: 0; }
+.map-route-summary strong { font-size: .78rem; }
+.map-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .75rem; font-weight: 800; white-space: nowrap; }
 .route-plot-card { width: min(760px, 100%); min-height: 560px; display: grid; grid-template-rows: auto 1fr auto; gap: 22px; padding: 30px; border: 1px solid #596448; border-radius: 14px; background: rgba(17,22,13,.93); }
 .route-plot-card h2 { margin: 8px 0; font-size: clamp(2rem, 4vw, 3.5rem); line-height: .95; }
 .route-plot-card p { color: var(--muted); line-height: 1.5; }
@@ -189,6 +194,8 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .map-canvas { min-height: 360px; padding: 18px; }
   .route-plot-card { min-height: 420px; padding: 20px; }
   .route-preview-actions { align-items: stretch; flex-direction: column; }
+  .route-preview-canvas, .google-route-map { min-height: 420px; }
+  .map-route-summary { right: 12px; bottom: 12px; align-items: stretch; flex-direction: column; }
   .rail nav a { padding: 8px; font-size: .8rem; }
   footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 18px; }
 }
