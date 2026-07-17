@@ -35,19 +35,21 @@ describe('Cloudflare delivery contract', () => {
     }
   });
 
-  it('provides a public sign-in path with the same providers as the app', () => {
+  it('provides public sign-in and sign-up paths with the same providers as the app', () => {
     const home = repoFile('apps/web/src/features/home-page.tsx');
     const signIn = repoFile('apps/web/src/features/auth/sign-in-page.tsx');
     const auth = repoFile('apps/web/src/features/auth/auth-context.tsx');
     const routes = repoFile('apps/web/src/app/app.tsx');
 
     expect(home).toContain('to="/signin"');
-    expect(home).toContain('Sign in to KSU');
+    expect(home).toContain('to="/signup"');
+    expect(home).toContain('Create your KSU account');
     expect(signIn).toContain('Continue with Google');
     expect(signIn).toContain('Continue with Apple');
     expect(auth).toContain("provider: 'google' | 'apple'");
     expect(routes).toContain('path="/login"');
     expect(routes).toContain('to="/signin"');
+    expect(routes).toContain('path="/signup"');
   });
 
   it('ships legal pages, token fallbacks, and both app-association documents', () => {

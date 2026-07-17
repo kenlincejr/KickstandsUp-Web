@@ -21,6 +21,7 @@ export function App() {
       <Route path="/shop" element={<ShopPage />} />
       <Route path="/login" element={<Navigate to="/signin" replace />} />
       <Route path="/signin" element={<SignInPage />} />
+      <Route path="/signup" element={<SignInPage mode="signup" />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
