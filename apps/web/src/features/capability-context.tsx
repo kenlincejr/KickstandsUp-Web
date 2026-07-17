@@ -20,6 +20,8 @@ type CapabilityState = {
 
 type StoredCapabilityState = CapabilityState & { loadedForUserId: string | null };
 
+type CapabilityLoaderClient = NonNullable<typeof supabase>;
+
 const accountCapabilitySet = new Set<string>(accountCapabilities);
 const clubCapabilitySet = new Set<string>(clubCapabilities);
 const sources = new Set<CapabilitySource>(['participant', 'store_premium', 'ksu_grant', 'club_sponsorship', 'club_role', 'named_seat']);
@@ -145,6 +147,22 @@ export function parseCapabilitySnapshot(value: unknown): CapabilitySnapshot | nu
   return withFailClosedState(snapshot);
 }
 
+/**
+ * A browser can retain the rider identity while its short-lived access token
+ * has expired. Retry the capability check once after Supabase refreshes that
+ * session instead of presenting an entitled rider as unavailable.
+ */
+export async function loadCapabilitySnapshot(client: CapabilityLoaderClient): Promise<CapabilitySnapshot | null> {
+  const first = await client.rpc('my_effective_capabilities_v1');
+  if (!first.error) return parseCapabilitySnapshot(first.data);
+
+  const refreshed = await client.auth.refreshSession();
+  if (refreshed.error) return null;
+
+  const retry = await client.rpc('my_effective_capabilities_v1');
+  return retry.error ? null : parseCapabilitySnapshot(retry.data);
+}
+
 export function CapabilityProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState<StoredCapabilityState>({
@@ -175,9 +193,8 @@ export function CapabilityProvider({ children }: { children: ReactNode }) {
       }, Math.min(delay, 2_147_000_000));
     };
     const load = async () => {
-      const { data, error } = await client.rpc('my_effective_capabilities_v1');
+      const parsed = await loadCapabilitySnapshot(client);
       if (!active) return;
-      const parsed = error ? null : parseCapabilitySnapshot(data);
       if (!parsed) {
         setState((current) => ({
           loading: false,

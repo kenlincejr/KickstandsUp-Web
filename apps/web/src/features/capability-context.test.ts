@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { parseCapabilitySnapshot, toStaleSnapshot, unavailableSnapshot } from './capability-context';
+import { describe, expect, it, vi } from 'vitest';
+import { loadCapabilitySnapshot, parseCapabilitySnapshot, toStaleSnapshot, unavailableSnapshot } from './capability-context';
 
 const readyPremium = {
   schema_version: 1,
@@ -43,5 +43,27 @@ describe('capability projection parsing', () => {
       projectionState: 'unavailable', accountTier: 'unavailable', accountCapabilities: [], sources: [],
     });
     expect(unavailableSnapshot()).toMatchObject({ projectionState: 'unavailable', accountCapabilities: [] });
+  });
+
+  it('refreshes an expired browser session and retries the capability RPC once', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: { code: 'PGRST301' } })
+      .mockResolvedValueOnce({ data: readyPremium, error: null });
+    const refreshSession = vi.fn().mockResolvedValue({ error: null });
+
+    await expect(loadCapabilitySnapshot({ rpc, auth: { refreshSession } } as never)).resolves.toMatchObject({
+      accountTier: 'premium',
+      accountCapabilities: expect.arrayContaining(['routes.plan']),
+    });
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays fail-closed when refreshing the browser session fails', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST301' } });
+    const refreshSession = vi.fn().mockResolvedValue({ error: { message: 'refresh denied' } });
+
+    await expect(loadCapabilitySnapshot({ rpc, auth: { refreshSession } } as never)).resolves.toBeNull();
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });
