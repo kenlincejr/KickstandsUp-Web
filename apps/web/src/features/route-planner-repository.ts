@@ -34,6 +34,23 @@ export type RoutePreview = {
   dailyRemaining?: number;
 };
 export type SavedRevision = { routePlanId: string; routeRevisionId: string; revisionNumber: number };
+export type RouteWeatherCondition = {
+  label: string;
+  latitude: number;
+  longitude: number;
+  observedAt: string;
+  description: string;
+  iconUrl: string | null;
+  temperatureF: number | null;
+  feelsLikeF: number | null;
+  precipitationChance: number | null;
+  windMph: number | null;
+  windGustMph: number | null;
+  windDirection: string | null;
+  humidityPercent: number | null;
+  thunderstormChance: number | null;
+  uvIndex: number | null;
+};
 
 function clientOrThrow() {
   if (!supabase) throw new Error('KSU Cloud is not configured for this website.');
@@ -90,6 +107,14 @@ export function isCompleteDefinition(definition: RouteDefinition) {
 
 export async function previewRoute(definition: RouteDefinition, signal?: AbortSignal) {
   return edgeRequest<RoutePreview>('route-preview', { operationId: crypto.randomUUID(), definition }, signal);
+}
+
+export async function getRouteWeather(points: { label: string; latitude: number; longitude: number }[], signal?: AbortSignal) {
+  const payload = await edgeRequest<{ conditions?: RouteWeatherCondition[] }>('route-weather', { points }, signal);
+  if (!Array.isArray(payload.conditions) || payload.conditions.length < 2) {
+    throw new Error('KSU could not read conditions along that route.');
+  }
+  return payload.conditions;
 }
 
 export async function saveRoute(definition: RouteDefinition, preview: RoutePreview, routePlanId?: string) {

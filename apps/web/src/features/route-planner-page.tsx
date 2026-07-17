@@ -5,6 +5,7 @@ import { GoogleRouteMap } from './google-route-map';
 import { publicEnv } from '../lib/env';
 import {
   decodePolyline,
+  getRouteWeather,
   isCompleteDefinition,
   previewRoute,
   resolvePlace,
@@ -14,6 +15,7 @@ import {
   type PlannerWaypoint,
   type RouteDefinition,
   type RoutePreview,
+  type RouteWeatherCondition,
   type SavedRevision,
 } from './route-planner-repository';
 
@@ -48,9 +50,10 @@ export function RoutePlannerPage() {
   const [showTraffic, setShowTraffic] = useState(false);
   const [searchingPointId, setSearchingPointId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [busy, setBusy] = useState<'preview' | 'save' | 'place' | null>(null);
+  const [busy, setBusy] = useState<'preview' | 'save' | 'place' | 'weather' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RoutePreview | null>(null);
+  const [weather, setWeather] = useState<RouteWeatherCondition[] | null>(null);
   const [saved, setSaved] = useState<SavedRevision | null>(null);
   const [routePlanId, setRoutePlanId] = useState<string | undefined>();
   const placeSession = useRef(crypto.randomUUID());
@@ -83,6 +86,7 @@ export function RoutePlannerPage() {
 
   const markChanged = () => {
     setPreview(null);
+    setWeather(null);
     setSaved(null);
     setError(null);
   };
@@ -186,6 +190,25 @@ export function RoutePlannerPage() {
   const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
   const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
 
+  const runWeather = async () => {
+    if (!preview || plottedPoints.length < 2) return;
+    setBusy('weather');
+    setError(null);
+    const middle = plottedPoints[Math.floor((plottedPoints.length - 1) / 2)];
+    const samples = [
+      { label: 'Start', ...plottedPoints[0] },
+      ...(middle && plottedPoints.length > 2 ? [{ label: 'Mid-route', ...middle }] : []),
+      { label: 'Finish', ...plottedPoints.at(-1)! },
+    ];
+    try {
+      setWeather(await getRouteWeather(samples));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'KSU could not check route conditions.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <section className="tool-page planner-page">
       <header className="tool-header">
@@ -235,10 +258,33 @@ export function RoutePlannerPage() {
             <p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
             <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Click the map to add a stop. Drag any pin to refine it.'}</strong>
             <label className="map-toggle"><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Traffic</label>
+            {preview ? <button className="secondary-button weather-button" disabled={busy !== null} onClick={() => void runWeather()} type="button">{busy === 'weather' ? 'Checking…' : weather ? 'Refresh weather' : 'Check weather'}</button> : null}
             {handoff ? <a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">Open in Google Maps</a> : null}
           </div>
         </div>
       </div>
+      {weather ? <section className="route-weather" aria-labelledby="route-weather-title">
+        <div className="route-weather-heading">
+          <div><p className="kicker">CONDITIONS ALONG THE RIDE</p><h2 id="route-weather-title">Know what the road is riding into.</h2></div>
+          <p>Current conditions · refresh before kickstands up</p>
+        </div>
+        <div className="weather-grid">
+          {weather.map((condition) => <article key={condition.label}>
+            <div className="weather-card-top">
+              <div><span>{condition.label}</span><h3>{condition.description}</h3></div>
+              {condition.iconUrl ? <img alt="" src={condition.iconUrl} /> : null}
+            </div>
+            <strong>{condition.temperatureF === null ? '—' : `${Math.round(condition.temperatureF)}°F`}</strong>
+            <dl>
+              <div><dt>Feels</dt><dd>{condition.feelsLikeF === null ? '—' : `${Math.round(condition.feelsLikeF)}°`}</dd></div>
+              <div><dt>Rain</dt><dd>{condition.precipitationChance === null ? '—' : `${Math.round(condition.precipitationChance)}%`}</dd></div>
+              <div><dt>Wind</dt><dd>{condition.windMph === null ? '—' : `${Math.round(condition.windMph)} mph`}</dd></div>
+              <div><dt>Gusts</dt><dd>{condition.windGustMph === null ? '—' : `${Math.round(condition.windGustMph)} mph`}</dd></div>
+            </dl>
+          </article>)}
+        </div>
+        <small>Weather data by Google. Conditions can change quickly; verify alerts and use rider judgment.</small>
+      </section> : null}
       {busy === 'place' ? <div className="planner-busy" aria-live="polite">Resolving place…</div> : null}
     </section>
   );
