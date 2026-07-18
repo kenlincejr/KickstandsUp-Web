@@ -57,6 +57,8 @@ export function RoutePlannerPage() {
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
+  const [fuelRangeMiles, setFuelRangeMiles] = useState('150');
+  const [fuelReservePercent, setFuelReservePercent] = useState('20');
   const [showTraffic, setShowTraffic] = useState(false);
   const [mapPointKind, setMapPointKind] = useState<'stop' | 'via'>('via');
   const [searchingPointId, setSearchingPointId] = useState<string | null>(null);
@@ -269,6 +271,7 @@ export function RoutePlannerPage() {
 
   const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
   const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
+  const smartStops = preview ? buildSmartStops(preview.distanceMeters, Number(fuelRangeMiles), Number(fuelReservePercent)) : null;
 
   return (
     <section className="tool-page planner-page" ref={plannerRef}>
@@ -331,13 +334,14 @@ export function RoutePlannerPage() {
               <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button"><b>+ Add a stop</b><small>Fuel, food, a meetup, or any planned break.</small></button>
               <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button"><b>+ Add pass-through</b><small>Shape the route through a road without stopping.</small></button>
             </div>
-            <small>Tip: clicking the map adds a pass-through. Use a stop when the group actually plans to pull over.</small>
+            <small>Place search and map pins both set a real route point. If search is ever unavailable, click the map to set Start or Finish, then drag the pin to dial it in.</small>
           </section>
           <fieldset className="route-options"><legend>Road preferences</legend>
             <label><input checked={avoidHighways} onChange={(event) => { markChanged(); setAvoidHighways(event.target.checked); }} type="checkbox" /> Avoid highways</label>
             <label><input checked={avoidTolls} onChange={(event) => { markChanged(); setAvoidTolls(event.target.checked); }} type="checkbox" /> Avoid tolls</label>
             <label><input checked={avoidFerries} onChange={(event) => { markChanged(); setAvoidFerries(event.target.checked); }} type="checkbox" /> Avoid ferries</label>
           </fieldset>
+          <section className="smart-stops" aria-labelledby="smart-stops-title"><p className="kicker">SMART STOPS</p><h2 id="smart-stops-title">Fuel and crew-break windows.</h2><p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p><div className="smart-stop-inputs"><label><span>Comfortable range</span><input inputMode="numeric" max="400" min="40" onChange={(event) => setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3))} value={fuelRangeMiles} /> mi</label><label><span>Keep in reserve</span><input inputMode="numeric" max="50" min="5" onChange={(event) => setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2))} value={fuelReservePercent} /> %</label></div>{smartStops ? smartStops.length ? <ol className="smart-stop-list">{smartStops.map((mile, index) => <li key={mile}><b>Stop {index + 1}</b><span>Start looking near mile {Math.max(1, mile - 15)} · fuel by mile {mile}</span></li>)}</ol> : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}</section>
         </aside>
         <div className="map-canvas route-preview-canvas">
           <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.filter((point): point is DraftPoint & Required<Pick<DraftPoint, 'latitude' | 'longitude'>> => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))} routePoints={plottedPoints} showTraffic={showTraffic} />
@@ -361,9 +365,10 @@ export function RoutePlannerPage() {
       </div>
       {weather ? <section className="route-weather" aria-labelledby="route-weather-title">
         <div className="route-weather-heading">
-          <div><p className="kicker">CONDITIONS ALONG THE RIDE</p><h2 id="route-weather-title">A planning signal for this preview.</h2></div>
+          <div><p className="kicker">ROUTE BRIEF</p><h2 id="route-weather-title">The things worth thinking about before you roll.</h2></div>
           <p>{weather.cacheHit ? 'Cached result' : 'Freshly fetched'} · generated {formatTimestamp(weather.generatedAt)}</p>
         </div>
+        <div className="route-brief-signals">{buildRouteBrief(weather).map((signal) => <article className={signal.tone} key={signal.title}><b>{signal.title}</b><span>{signal.detail}</span></article>)}</div>
         <div className="weather-grid">
           {weather.conditions.map((condition) => <article key={condition.label}>
             <div className="weather-card-top"><div><span>{condition.label}</span><h3>{condition.description}</h3></div>{condition.iconUrl ? <img alt="" src={condition.iconUrl} /> : null}</div>
@@ -389,4 +394,27 @@ export function RoutePlannerPage() {
 function formatTimestamp(value: string) {
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp) : 'an unknown time';
+}
+
+function buildSmartStops(distanceMeters: number, rangeMiles: number, reservePercent: number) {
+  const routeMiles = distanceMeters / 1609.344;
+  const reserveMiles = rangeMiles * Math.max(5, Math.min(50, reservePercent || 20)) / 100;
+  const interval = rangeMiles - reserveMiles;
+  if (!Number.isFinite(routeMiles) || !Number.isFinite(interval) || rangeMiles < 40 || interval <= 0 || routeMiles <= interval) return [];
+  const stops: number[] = [];
+  for (let mile = interval; mile < routeMiles; mile += interval) stops.push(Math.round(mile));
+  return stops;
+}
+
+function buildRouteBrief(weather: RouteWeatherResponse) {
+  const signals: Array<{ tone: 'clear' | 'watch' | 'caution'; title: string; detail: string }> = [];
+  for (const condition of weather.conditions) {
+    const where = condition.label.toLowerCase();
+    if ((condition.precipitationChance ?? 0) >= 50) signals.push({ tone: 'caution', title: `${condition.label}: rain likely`, detail: `${condition.precipitationChance}% precipitation chance ${where}. Pack rain gear and leave more room.` });
+    else if ((condition.precipitationChance ?? 0) >= 25) signals.push({ tone: 'watch', title: `${condition.label}: rain possible`, detail: `${condition.precipitationChance}% precipitation chance ${where}. Keep the layer handy.` });
+    if ((condition.windGustMph ?? 0) >= 35) signals.push({ tone: 'caution', title: `${condition.label}: strong gusts`, detail: `Gusts near ${Math.round(condition.windGustMph!)} mph ${where}. Expect exposed bridges and open stretches to move the bike.` });
+    else if ((condition.windGustMph ?? 0) >= 20) signals.push({ tone: 'watch', title: `${condition.label}: gusty`, detail: `Gusts near ${Math.round(condition.windGustMph!)} mph ${where}.` });
+    if (condition.visibilityMiles !== null && condition.visibilityMiles < 3) signals.push({ tone: 'caution', title: `${condition.label}: low visibility`, detail: `Visibility is about ${Math.round(condition.visibilityMiles)} mi ${where}.` });
+  }
+  return signals.length ? signals : [{ tone: 'clear' as const, title: 'No big planning flags in this snapshot', detail: 'Still check alerts, pavement, and local conditions before the kickstands come up.' }];
 }

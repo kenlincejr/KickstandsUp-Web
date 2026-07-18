@@ -206,6 +206,10 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .weather-grid dl div { padding-top: 8px; border-top: 1px solid var(--line); }
 .weather-grid dt { color: var(--muted); font-size: .65rem; text-transform: uppercase; }
 .weather-grid dd { margin: 3px 0 0; font-size: .82rem; font-weight: 800; }
+.route-brief-signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.route-brief-signals article { display: grid; gap: 5px; padding: 13px; border: 1px solid #4e6040; border-radius: 9px; background: rgba(26,39,21,.55); }
+.route-brief-signals article.watch { border-color: #b18c35; }.route-brief-signals article.caution { border-color: #b85c32; background: rgba(123,46,22,.16); }.route-brief-signals span { color: var(--muted); font-size: .76rem; line-height: 1.35; }
+.smart-stops { display: grid; gap: 10px; margin-top: 16px; padding: 16px; border: 1px solid #596448; border-radius: 10px; background: rgba(20,25,15,.72); }.smart-stops h2 { margin: 0; font-size: 1.15rem; }.smart-stops p, .smart-stops small { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.4; }.smart-stop-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.smart-stop-inputs label { display: grid; gap: 4px; color: var(--muted); font-size: .68rem; font-weight: 800; text-transform: uppercase; }.smart-stop-inputs input { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 6px; background: #0f140c; color: var(--ink); font: inherit; }.smart-stop-list { display: grid; gap: 7px; padding: 0; margin: 0; list-style: none; }.smart-stop-list li { display: grid; gap: 2px; padding: 9px; border-left: 3px solid var(--orange); background: rgba(8,11,7,.42); }.smart-stop-list span { color: var(--muted); font-size: .74rem; }
 .route-plot-card { width: min(760px, 100%); min-height: 560px; display: grid; grid-template-rows: auto 1fr auto; gap: 22px; padding: 30px; border: 1px solid #596448; border-radius: 14px; background: rgba(17,22,13,.93); }
 .route-plot-card h2 { margin: 8px 0; font-size: clamp(2rem, 4vw, 3.5rem); line-height: .95; }
 .route-plot-card p { color: var(--muted); line-height: 1.5; }
@@ -263,7 +267,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .site-header nav > a:not(.nav-cta) { display: none; }
   .hero { grid-template-columns: 1fr; padding: 80px 0; }
   .route-card { transform: none; }
-  .pillar-grid, .club-tool-grid, .account-grid, .route-library-grid, .route-detail-grid, .weather-grid { grid-template-columns: 1fr; }
+  .pillar-grid, .club-tool-grid, .account-grid, .route-library-grid, .route-detail-grid, .weather-grid, .route-brief-signals { grid-template-columns: 1fr; }
   .pillar-grid article { border-right: 0; border-bottom: 1px solid var(--line); }
   .app-frame { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; width: 100%; min-width: 0; height: auto; flex-direction: row; align-items: center; gap: 24px; padding: 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
