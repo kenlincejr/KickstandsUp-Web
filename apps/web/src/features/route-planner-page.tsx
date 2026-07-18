@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { buildGoogleMapsHandoffs } from './google-maps-handoff';
 import { GoogleRouteMap } from './google-route-map';
@@ -69,6 +69,7 @@ export function RoutePlannerPage() {
   const [weather, setWeather] = useState<RouteWeatherResponse | null>(null);
   const [saved, setSaved] = useState<SavedRevision | null>(null);
   const [routePlanId, setRoutePlanId] = useState<string | undefined>();
+  const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
   const placeSession = useRef(crypto.randomUUID());
   const plannerRef = useRef<HTMLElement>(null);
 
@@ -232,6 +233,26 @@ export function RoutePlannerPage() {
     }
   };
 
+  const reorderWaypoint = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    markChanged();
+    setPoints((current) => {
+      const fromIndex = current.findIndex((point) => point.id === fromId);
+      const toIndex = current.findIndex((point) => point.id === toId);
+      if (fromIndex <= 0 || toIndex <= 0 || fromIndex === current.length - 1 || toIndex === current.length - 1) return current;
+      const next = [...current];
+      const [moving] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moving);
+      return next;
+    });
+  };
+
+  const beginWaypointDrag = (event: DragEvent<HTMLButtonElement>, pointId: string) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', pointId);
+    setDraggingPointId(pointId);
+  };
+
   const setIntermediateKind = (id: string, kind: 'stop' | 'via') => {
     markChanged();
     setPoints((current) => current.map((point) => point.id === id ? { ...point, kind } : point));
@@ -304,7 +325,8 @@ export function RoutePlannerPage() {
             </ul>
           </section>
           <ol className="planner-stop-list">
-            {points.map((point, index) => <li key={point.id}>
+            {points.map((point, index) => <Fragment key={point.id}>
+              <li className={draggingPointId === point.id ? 'waypoint-row dragging' : 'waypoint-row'} onDragOver={index > 0 && index < points.length - 1 ? (event) => event.preventDefault() : undefined} onDrop={index > 0 && index < points.length - 1 ? (event) => { event.preventDefault(); reorderWaypoint(event.dataTransfer.getData('text/plain'), point.id); setDraggingPointId(null); } : undefined}>
               <div className="stop-number">{String(index + 1).padStart(2, '0')}</div>
               <div className="stop-editor">
                 <label><span>{pointLabel(point, index, points.length).toUpperCase()}</span><input autoComplete="off" onChange={(event) => updatePointQuery(point.id, event.target.value)} onFocus={() => setSearchingPointId(point.id)} placeholder={point.kind === 'origin' ? 'Search starting place' : point.kind === 'destination' ? 'Search destination' : point.kind === 'stop' ? 'Search a planned stop' : 'Search a road to ride through'} value={point.displayName} /></label>
@@ -320,22 +342,16 @@ export function RoutePlannerPage() {
               </div>
               <div className="stop-actions">
                 {index > 0 && index < points.length - 1 ? <>
-                  <button aria-label="Move waypoint up" disabled={index === 1} onClick={() => movePoint(index, -1)} type="button">↑</button>
+                   <button aria-label={`Drag ${pointLabel(point, index, points.length)} to reorder`} className="drag-waypoint" draggable onDragEnd={() => setDraggingPointId(null)} onDragStart={(event) => beginWaypointDrag(event, point.id)} type="button">⠿</button>
+                   <button aria-label="Move waypoint up" disabled={index === 1} onClick={() => movePoint(index, -1)} type="button">↑</button>
                   <button aria-label="Move waypoint down" disabled={index === points.length - 2} onClick={() => movePoint(index, 1)} type="button">↓</button>
                   <button aria-label="Remove waypoint" onClick={() => { markChanged(); setPoints((current) => current.filter((item) => item.id !== point.id)); }} type="button">×</button>
                 </> : null}
               </div>
-            </li>)}
+              </li>
+              {index === 0 ? <li className="waypoint-insert"><div><p className="kicker">BUILD THE RIDE</p><strong>Add a point between Start and Finish</strong><small>Stop for fuel, food, or a meetup. Pass-through to keep the group on the road you picked.</small></div><div className="insert-actions"><button disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button">＋ Stop</button><button disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button">＋ Pass-through</button></div></li> : null}
+            </Fragment>)}
           </ol>
-          <section className="point-picker" aria-label="Add a route point">
-            <p className="kicker">ADD TO THE RIDE</p>
-            <strong>What happens at the next point?</strong>
-            <div>
-              <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button"><b>+ Add a stop</b><small>Fuel, food, a meetup, or any planned break.</small></button>
-              <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button"><b>+ Add pass-through</b><small>Shape the route through a road without stopping.</small></button>
-            </div>
-            <small>Place search and map pins both set a real route point. If search is ever unavailable, click the map to set Start or Finish, then drag the pin to dial it in.</small>
-          </section>
           <fieldset className="route-options"><legend>Road preferences</legend>
             <label><input checked={avoidHighways} onChange={(event) => { markChanged(); setAvoidHighways(event.target.checked); }} type="checkbox" /> Avoid highways</label>
             <label><input checked={avoidTolls} onChange={(event) => { markChanged(); setAvoidTolls(event.target.checked); }} type="checkbox" /> Avoid tolls</label>
@@ -344,10 +360,10 @@ export function RoutePlannerPage() {
           <section className="smart-stops" aria-labelledby="smart-stops-title"><p className="kicker">SMART STOPS</p><h2 id="smart-stops-title">Fuel and crew-break windows.</h2><p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p><div className="smart-stop-inputs"><label><span>Comfortable range</span><input inputMode="numeric" max="400" min="40" onChange={(event) => setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3))} value={fuelRangeMiles} /> mi</label><label><span>Keep in reserve</span><input inputMode="numeric" max="50" min="5" onChange={(event) => setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2))} value={fuelReservePercent} /> %</label></div>{smartStops ? smartStops.length ? <ol className="smart-stop-list">{smartStops.map((mile, index) => <li key={mile}><b>Stop {index + 1}</b><span>Start looking near mile {Math.max(1, mile - 15)} · fuel by mile {mile}</span></li>)}</ol> : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}</section>
         </aside>
         <div className="map-canvas route-preview-canvas">
-          <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.filter((point): point is DraftPoint & Required<Pick<DraftPoint, 'latitude' | 'longitude'>> => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))} routePoints={plottedPoints} showTraffic={showTraffic} />
+          <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.flatMap((point, index) => typeof point.latitude === 'number' && typeof point.longitude === 'number' ? [{ ...point, latitude: point.latitude, longitude: point.longitude, ordinal: index + 1 }] : [])} routePoints={plottedPoints} showTraffic={showTraffic} />
           <div className="map-route-summary">
             <div><p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
-              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Click the map to set a point. Every map click is a pass-through; drag any pin to refine it.'}</strong>
+              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Set Start and Finish, then add the points that make this your ride. Drag a pin or its grip to change the order.'}</strong>
               <small className="route-key"><i className="stop-key" /> Stop = pull over <i className="via-key" /> Pass-through = keep rolling</small>
             </div>
             <div className="route-tools" aria-label="Route tools">

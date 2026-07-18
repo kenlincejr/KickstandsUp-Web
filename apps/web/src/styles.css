@@ -152,7 +152,11 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .planner-title input, .stop-editor input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #4b513f; border-radius: 7px; outline: 0; background: #0d110b; color: var(--ink); }
 .planner-title input:focus, .stop-editor input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(245,166,35,.11); }
 .planner-stop-list { margin: 14px 0; padding: 0; list-style: none; }
-.planner-stop-list > li { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) 28px; gap: 10px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.planner-stop-list > .waypoint-row { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) 28px; gap: 10px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.planner-stop-list > .waypoint-row.dragging { opacity: .55; }
+.waypoint-insert { display: grid; gap: 10px; margin: 4px 0; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.waypoint-insert p { margin: 0 0 4px; }.waypoint-insert strong, .waypoint-insert small { display: block; }.waypoint-insert small { margin-top: 4px; color: var(--muted); font-size: .7rem; line-height: 1.35; }
+.insert-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.insert-actions button { min-height: 42px; border: 1px dashed #58604a; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }.insert-actions button:hover { border-color: var(--orange); background: rgba(245,166,35,.08); }
 .stop-number { width: 30px; height: 30px; display: grid; place-items: center; margin-top: 23px; border-radius: 50%; background: var(--orange); color: #171006; font-size: .72rem; font-weight: 900; }
 .stop-editor { position: relative; min-width: 0; }
 .stop-editor label { display: grid; gap: 5px; }
@@ -169,6 +173,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .place-results small { color: var(--muted); }
 .stop-actions { display: grid; gap: 3px; padding-top: 18px; }
 .stop-actions button { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.stop-actions .drag-waypoint { cursor: grab; font-size: 1rem; }.stop-actions .drag-waypoint:active { cursor: grabbing; }
 .route-options { display: grid; gap: 10px; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .route-options legend { padding: 0 5px; color: var(--ink); font-size: .78rem; font-weight: 800; }
 .route-options label { display: flex; gap: 9px; align-items: center; font-size: .82rem; }
