@@ -17,6 +17,7 @@ export type RouteDefinition = {
   avoidHighways: boolean;
   avoidTolls: boolean;
   avoidFerries: boolean;
+  fuelPlan?: { rangeMiles: number; reservePercent: number; source: 'bike_exact' | 'bike_band_estimate' | 'route_override' | 'manual'; plannerVersion: 1; bikeId?: string; bikeLabel?: string };
 };
 
 export type PlaceSuggestion = { placeId: string; primaryText: string; secondaryText?: string };

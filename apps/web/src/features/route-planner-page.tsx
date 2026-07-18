@@ -2,6 +2,11 @@ import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from '
 import { Link } from 'react-router-dom';
 import { buildGoogleMapsHandoffs } from './google-maps-handoff';
 import { GoogleRouteMap } from './google-route-map';
+import { firstIncompletePoint, isRoutePointComplete, placeExistingRoutePoint, routePointIdentity } from './route-point-identity';
+import { plannerGuideSteps, plannerGuideStorageKey, shouldShowPlannerGuide } from './planner-onboarding';
+import { nextPlannerAction } from './planner-post-preview';
+import { fuelPlanForBike, manualPlannerFuelPlan, plannerFuelSourceLabel, type PlannerFuelPlan, type PlannerGarageBike } from './planner-fuel-plan';
+import { listPlannerGarage } from './planner-garage-repository';
 import { publicEnv } from '../lib/env';
 import {
   decodePolyline,
@@ -41,21 +46,6 @@ function rideTime(seconds: number) {
   return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 }
 
-function pointLabel(point: DraftPoint, index: number, total: number) {
-  if (index === 0) return 'Start';
-  if (index === total - 1) return 'Finish';
-  return `Waypoint ${index}`;
-}
-
-function pointPurpose(point: DraftPoint) {
-  return point.kind === 'stop' ? 'The group plans to pull over here — fuel, food, meetup, or a break.' : 'The group keeps rolling here — this point simply keeps the ride on the road you picked.';
-}
-
-function pointStatus(point: DraftPoint, index: number, total: number) {
-  if (index === 0 || index === total - 1) return pointLabel(point, index, total);
-  return `${pointLabel(point, index, total)} · ${point.kind === 'stop' ? 'planned stop' : 'keep riding'}`;
-}
-
 export function RoutePlannerPage() {
   const [title, setTitle] = useState('My next ride');
   const [points, setPoints] = useState<DraftPoint[]>([blankPoint('origin'), blankPoint('destination')]);
@@ -64,13 +54,19 @@ export function RoutePlannerPage() {
   const [avoidFerries, setAvoidFerries] = useState(false);
   const [fuelRangeMiles, setFuelRangeMiles] = useState('150');
   const [fuelReservePercent, setFuelReservePercent] = useState('20');
+  const [garage, setGarage] = useState<PlannerGarageBike[]>([]);
+  const [selectedBikeId, setSelectedBikeId] = useState('manual');
+  const [fuelSource, setFuelSource] = useState<PlannerFuelPlan['source']>('manual');
   const [showTraffic, setShowTraffic] = useState(false);
-  const [mapPointKind, setMapPointKind] = useState<'stop' | 'via'>('via');
+  const [activePlacementPointId, setActivePlacementPointId] = useState<string | null>(null);
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  const [showPlanningGuide, setShowPlanningGuide] = useState(true);
   const [searchingPointId, setSearchingPointId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [busy, setBusy] = useState<'preview' | 'save' | 'place' | 'weather' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RoutePreview | null>(null);
+  const [previewStale, setPreviewStale] = useState(false);
   const [weather, setWeather] = useState<RouteWeatherResponse | null>(null);
   const [saved, setSaved] = useState<SavedRevision | null>(null);
   const [routePlanId, setRoutePlanId] = useState<string | undefined>();
@@ -79,23 +75,46 @@ export function RoutePlannerPage() {
   const plannerRef = useRef<HTMLElement>(null);
   const weatherRef = useRef<HTMLElement>(null);
 
+  useEffect(() => {
+    setShowPlanningGuide(shouldShowPlannerGuide(window.localStorage.getItem(plannerGuideStorageKey)));
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listPlannerGarage(controller.signal).then((bikes) => {
+      if (controller.signal.aborted) return;
+      setGarage(bikes);
+      const active = bikes.find((bike) => bike.isActive) ?? bikes[0];
+      const plan = active && fuelPlanForBike(active, Number(fuelReservePercent));
+      if (plan) { setSelectedBikeId(active.id); setFuelRangeMiles(String(plan.rangeMiles)); setFuelSource(plan.source); }
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const fuelPlanSnapshot = useMemo(() => {
+    const selectedBike = garage.find((bike) => bike.id === selectedBikeId);
+    if (selectedBike && fuelSource === 'bike_band_estimate') return fuelPlanForBike(selectedBike, Number(fuelReservePercent));
+    return manualPlannerFuelPlan(Number(fuelRangeMiles), Number(fuelReservePercent), fuelSource === 'route_override' ? 'route_override' : 'manual');
+  }, [fuelRangeMiles, fuelReservePercent, fuelSource, garage, selectedBikeId]);
+
   const definition = useMemo<RouteDefinition | null>(() => {
     const resolved = points.every((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.source && point.coordinateProvenance);
     if (!resolved) return null;
     return {
       title: title.trim() || 'Untitled route', avoidHighways, avoidTolls, avoidFerries,
+      ...(fuelPlanSnapshot ? { fuelPlan: fuelPlanSnapshot } : {}),
       waypoints: points.map(({ id: _id, ...point }) => point as PlannerWaypoint),
     };
-  }, [avoidFerries, avoidHighways, avoidTolls, points, title]);
+  }, [avoidFerries, avoidHighways, avoidTolls, fuelPlanSnapshot, points, title]);
 
   const activeSearch = points.find((point) => point.id === searchingPointId);
-  const incompletePoints = points.filter((point) => !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || !point.displayName.trim());
+  const incompletePoints = points.filter((point) => !isRoutePointComplete(point));
   const previewReady = Boolean(definition && isCompleteDefinition(definition));
-  const firstIncomplete = incompletePoints[0];
-  const firstIncompleteIndex = firstIncomplete ? points.indexOf(firstIncomplete) : -1;
+  const firstIncomplete = firstIncompletePoint(points);
+  const freshPreview = Boolean(preview && !previewStale);
   const previewMessage = previewReady
-    ? 'Every point is set. Preview the actual roads, then check conditions.'
-    : firstIncomplete ? `${pointLabel(firstIncomplete, firstIncompleteIndex, points.length)} still needs a location. Search for it or choose the next map-pin type and click the map.` : 'Add a start and finish to begin.';
+    ? previewStale ? 'Route changed after preview. Preview the updated route before conditions or handoff.' : 'Every point is set. Preview the actual roads, then check conditions.'
+    : firstIncomplete ? `${firstIncomplete.identity.token} needs a location. Search for it or place that exact point on the map.` : 'Add a start and finish to begin.';
   useEffect(() => {
     if (!activeSearch || activeSearch.displayName.trim().length < 3 || activeSearch.googlePlaceId) {
       setSuggestions([]);
@@ -134,7 +153,7 @@ export function RoutePlannerPage() {
   }, [weather]);
 
   const markChanged = () => {
-    setPreview(null);
+    setPreviewStale(Boolean(preview));
     setWeather(null);
     setSaved(null);
     setError(null);
@@ -143,6 +162,8 @@ export function RoutePlannerPage() {
   const updatePointQuery = (id: string, displayName: string) => {
     markChanged();
     setSearchingPointId(id);
+    setSelectedPointId(id);
+    setActivePlacementPointId(null);
     setSuggestions([]);
     setPoints((current) => current.map((point) => point.id === id ? {
       ...point, displayName, latitude: undefined, longitude: undefined, googlePlaceId: undefined, source: undefined, coordinateProvenance: undefined,
@@ -164,6 +185,8 @@ export function RoutePlannerPage() {
         coordinateProvenance: 'google_places',
       } : point));
       setSearchingPointId(null);
+      setActivePlacementPointId(null);
+      setSelectedPointId(pointId);
       setSuggestions([]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'KSU could not use that place.');
@@ -176,20 +199,46 @@ export function RoutePlannerPage() {
     markChanged();
     const point = blankPoint(kind);
     setSearchingPointId(point.id);
+    setSelectedPointId(point.id);
+    setActivePlacementPointId(point.id);
     setSuggestions([]);
     setPoints((current) => [...current.slice(0, -1), point, current.at(-1)!]);
   };
 
+  const addFuelStop = (mile: number) => {
+    addIntermediate('stop');
+    setError(`Fuel window near mile ${mile}: choose the actual stop by searching or placing this Stop here point on the map.`);
+  };
+
+  const selectPoint = (pointId: string) => {
+    setSelectedPointId(pointId);
+    window.requestAnimationFrame(() => document.getElementById(`route-point-${pointId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+
+  const dismissPlanningGuide = () => {
+    window.localStorage.setItem(plannerGuideStorageKey, 'dismissed');
+    setShowPlanningGuide(false);
+  };
+
+  const restorePlanningGuide = () => {
+    window.localStorage.removeItem(plannerGuideStorageKey);
+    setShowPlanningGuide(true);
+  };
+
   const addMapPoint = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    if (!activePlacementPointId) {
+      setError('Choose a route point first, then use “Place on map.” KSU will never add an unplanned waypoint from a map click.');
+      return;
+    }
     markChanged();
     setSearchingPointId(null);
     setSuggestions([]);
     setPoints((current) => {
       const location = { displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude, source: 'manual' as const, coordinateProvenance: 'ksu_customer' as const };
-      if (!Number.isFinite(current[0]?.latitude)) return current.map((point, index) => index === 0 ? { ...point, ...location } : point);
-      if (!Number.isFinite(current.at(-1)?.latitude)) return current.map((point, index) => index === current.length - 1 ? { ...point, ...location } : point);
-      return current.length >= 27 ? current : [...current.slice(0, -1), { id: crypto.randomUUID(), kind: mapPointKind, ...location }, current.at(-1)!];
+      return placeExistingRoutePoint(current, activePlacementPointId, location);
     });
+    setSelectedPointId(activePlacementPointId);
+    setActivePlacementPointId(null);
   };
 
   const moveMapPoint = (id: string, { latitude, longitude }: { latitude: number; longitude: number }) => {
@@ -198,6 +247,7 @@ export function RoutePlannerPage() {
       ...point, displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude,
       googlePlaceId: undefined, source: 'manual', coordinateProvenance: 'ksu_customer',
     } : point));
+    setSelectedPointId(id);
   };
 
   const movePoint = (index: number, direction: -1 | 1) => {
@@ -213,14 +263,17 @@ export function RoutePlannerPage() {
 
   const runPreview = async () => {
     if (!definition || !isCompleteDefinition(definition)) {
-      const missing = incompletePoints.map((point) => pointLabel(point, points.indexOf(point), points.length).toLowerCase());
-      setError(`Preview needs a resolved ${missing.join(', ')}. Pick a result from the place list or click the map to set it.`);
+      if (firstIncomplete) {
+        setSelectedPointId(firstIncomplete.point.id);
+        setError(`${firstIncomplete.identity.token} needs a location. Use Search or Place ${firstIncomplete.identity.token} on map below.`);
+      }
       return;
     }
     setBusy('preview');
     setError(null);
     try {
       setPreview(await previewRoute(definition));
+      setPreviewStale(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'KSU could not preview that route.');
     } finally {
@@ -229,7 +282,7 @@ export function RoutePlannerPage() {
   };
 
   const runSave = async () => {
-    if (!definition || !preview) return;
+    if (!definition || !preview || previewStale) return;
     setBusy('save');
     setError(null);
     try {
@@ -269,7 +322,7 @@ export function RoutePlannerPage() {
   };
 
   const runWeather = async () => {
-    if (!preview) return;
+    if (!preview || previewStale) return;
     setBusy('weather');
     setError(null);
     try {
@@ -294,6 +347,7 @@ export function RoutePlannerPage() {
     setSearchingPointId(null);
     setSuggestions([]);
     setPreview(null);
+    setPreviewStale(false);
     setWeather(null);
     setSaved(null);
     setRoutePlanId(undefined);
@@ -301,9 +355,12 @@ export function RoutePlannerPage() {
     placeSession.current = crypto.randomUUID();
   };
 
-  const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
-  const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
+  const plottedPoints = freshPreview ? decodePolyline(preview!.encodedPolyline) : definition?.waypoints ?? [];
+  const handoffs = definition && freshPreview ? buildGoogleMapsHandoffs(definition.waypoints) : [];
   const smartStops = preview ? buildSmartStops(preview.distanceMeters, Number(fuelRangeMiles), Number(fuelReservePercent)) : null;
+  const activePlacementIndex = activePlacementPointId ? points.findIndex((point) => point.id === activePlacementPointId) : -1;
+  const activePlacementIdentity = activePlacementIndex >= 0 ? routePointIdentity(points, activePlacementIndex) : null;
+  const nextAction = nextPlannerAction({ freshPreview, conditionsChecked: Boolean(weather), saved: Boolean(saved) });
 
   return (
     <section className="tool-page planner-page" ref={plannerRef}>
@@ -313,13 +370,23 @@ export function RoutePlannerPage() {
           <p className={`preview-status ${previewReady ? 'ready' : ''}`} aria-live="polite">{previewMessage}</p>
           <div className="button-row">
           <button className="danger-button" disabled={busy !== null} onClick={clearRoute} type="button">Clear route</button>
-          <button className="secondary-button" disabled={!preview || busy !== null} onClick={() => void runSave()} type="button">{busy === 'save' ? 'Saving…' : saved ? `Saved revision ${saved.revisionNumber}` : 'Save route'}</button>
-          <button className="primary-button" disabled={!previewReady || busy !== null} onClick={() => void runPreview()} type="button">{busy === 'preview' ? 'Calculating…' : preview ? 'Refresh preview' : 'Preview route'}</button>
+          <button className="secondary-button" disabled={!freshPreview || busy !== null} onClick={() => void runSave()} type="button">{busy === 'save' ? 'Saving…' : saved ? `Saved revision ${saved.revisionNumber}` : 'Save route'}</button>
+          <button className="primary-button" disabled={busy !== null} onClick={() => void runPreview()} type="button">{busy === 'preview' ? 'Calculating…' : previewStale ? 'Preview updated route' : preview ? 'Refresh preview' : previewReady ? 'Preview route' : firstIncomplete ? `Finish ${firstIncomplete.identity.token} to preview` : 'Finish route to preview'}</button>
           </div>
+          <details className="planner-help-menu">
+            <summary>Planning help</summary>
+            <p>Need a quick reset? The guide shows the rider-safe planning flow without clearing your route.</p>
+            <button className="text-button" onClick={restorePlanningGuide} type="button">Show planning guide</button>
+          </details>
         </div>
       </header>
       {error ? <div className="planner-notice error" role="alert">{error}</div> : null}
       {saved ? <div className="planner-notice success">Route saved to My routes. <Link to={`/app/routes/${saved.routePlanId}`}>Open saved route →</Link></div> : null}
+      {showPlanningGuide ? <section className="planner-guide" aria-labelledby="planner-guide-title">
+        <div><p className="kicker">PLAN THIS RIDE</p><h2 id="planner-guide-title">Three moves. No mystery waypoint.</h2></div>
+        <ol>{plannerGuideSteps.map((step, index) => <li key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong><small>{step.detail}</small></span></li>)}</ol>
+        <button className="text-button" onClick={dismissPlanningGuide} type="button">Got it — hide guide</button>
+      </section> : null}
       <div className="planner-grid">
         <aside className="planner-panel">
           <label className="planner-title"><span>Route name</span><input maxLength={120} onChange={(event) => { markChanged(); setTitle(event.target.value); }} value={title} /></label>
@@ -330,37 +397,41 @@ export function RoutePlannerPage() {
           </div>
           <section className={`preview-readiness ${previewReady ? 'ready' : ''}`} aria-live="polite">
             <p className="kicker">PREVIEW CHECK</p>
-            <strong>{previewReady ? 'Ready to preview the road.' : 'Finish these before Preview route.'}</strong>
+            <strong>{previewStale ? 'Route changed after preview.' : previewReady ? 'Ready to preview the road.' : 'Finish these before Preview route.'}</strong>
             <ul>
-               {points.map((point, index) => <li key={point.id} className={Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? 'complete' : ''}>{Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? '✓' : '○'} {pointStatus(point, index, points.length)} {Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? 'ready' : 'needs a place'}</li>)}
+               {points.map((point, index) => {
+                 const identity = routePointIdentity(points, index);
+                 const complete = isRoutePointComplete(point);
+                 return <li key={point.id} className={complete ? 'complete' : ''}>{complete ? '✓' : '○'} {identity.token} · {complete ? 'Ready' : 'Needs a location'} <button onClick={() => complete ? selectPoint(point.id) : (selectPoint(point.id), setActivePlacementPointId(point.id))} type="button">{complete ? `Select ${identity.token}` : `Place ${identity.token} on map`}</button></li>;
+               })}
             </ul>
           </section>
           <ol className="planner-stop-list">
             {points.map((point, index) => <Fragment key={point.id}>
-              <li className={draggingPointId === point.id ? 'waypoint-row dragging' : 'waypoint-row'} onDragOver={index > 0 && index < points.length - 1 ? (event) => event.preventDefault() : undefined} onDrop={index > 0 && index < points.length - 1 ? (event) => { event.preventDefault(); reorderWaypoint(event.dataTransfer.getData('text/plain'), point.id); setDraggingPointId(null); } : undefined}>
-              <div className="stop-number">{String(index + 1).padStart(2, '0')}</div>
+              <li id={`route-point-${point.id}`} className={`${draggingPointId === point.id ? 'waypoint-row dragging' : 'waypoint-row'} ${selectedPointId === point.id ? 'selected' : ''}`} onClick={() => selectPoint(point.id)} onDragOver={index > 0 && index < points.length - 1 ? (event) => event.preventDefault() : undefined} onDrop={index > 0 && index < points.length - 1 ? (event) => { event.preventDefault(); reorderWaypoint(event.dataTransfer.getData('text/plain'), point.id); setDraggingPointId(null); } : undefined}>
+              <div className="stop-number">{routePointIdentity(points, index).token}</div>
               <div className="stop-editor">
-                <label><span>{pointLabel(point, index, points.length).toUpperCase()}</span><input autoComplete="off" onChange={(event) => updatePointQuery(point.id, event.target.value)} onFocus={() => setSearchingPointId(point.id)} placeholder={point.kind === 'origin' ? 'Search starting place' : point.kind === 'destination' ? 'Search destination' : point.kind === 'stop' ? 'Search a planned stop' : 'Search a road to ride through'} value={point.displayName} /></label>
+                <label><span>{routePointIdentity(points, index).purpose.toUpperCase()}</span><input autoComplete="off" onChange={(event) => updatePointQuery(point.id, event.target.value)} onFocus={() => { setSearchingPointId(point.id); setSelectedPointId(point.id); }} placeholder={point.kind === 'origin' ? 'Search starting place' : point.kind === 'destination' ? 'Search destination' : point.kind === 'stop' ? 'Search a stop' : 'Search a road to ride through'} value={point.displayName} /></label>
                 {index > 0 && index < points.length - 1 ? <>
-                  <div className="waypoint-kind" aria-label={`Waypoint ${index} purpose`}>
-                    <button aria-pressed={point.kind === 'stop'} className={point.kind === 'stop' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'stop')} type="button"><b>Plan a stop</b><small>Fuel, food, or regroup</small></button>
-                    <button aria-pressed={point.kind === 'via'} className={point.kind === 'via' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'via')} type="button"><b>Keep riding</b><small>Stay on this road</small></button>
+                  <div className="waypoint-kind" aria-label={`${routePointIdentity(points, index).token} purpose`}>
+                    <button aria-pressed={point.kind === 'stop'} className={point.kind === 'stop' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'stop')} type="button"><b>Stop here</b><small>Fuel, food, or regroup</small></button>
+                    <button aria-pressed={point.kind === 'via'} className={point.kind === 'via' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'via')} type="button"><b>Ride through</b><small>Stay on this road</small></button>
                   </div>
-                  <small className="point-purpose">{pointPurpose(point)}</small>
+                  <small className="point-purpose">{point.kind === 'stop' ? 'The group plans to pull over here.' : 'This holds the group to the road you picked.'}</small>
                 </> : null}
                 {searchingPointId === point.id && suggestions.length ? <div className="place-results">{suggestions.map((suggestion) => <button key={suggestion.placeId} onClick={() => void choosePlace(point.id, suggestion)} type="button"><b>{suggestion.primaryText}</b>{suggestion.secondaryText ? <small>{suggestion.secondaryText}</small> : null}</button>)}</div> : null}
-                {Number.isFinite(point.latitude) ? <small className="resolved-place">Ready · {point.latitude!.toFixed(4)}, {point.longitude!.toFixed(4)}</small> : null}
+                {isRoutePointComplete(point) ? <small className="resolved-place">Ready · {point.latitude!.toFixed(4)}, {point.longitude!.toFixed(4)}</small> : <div className="point-recovery"><button onClick={() => { setSelectedPointId(point.id); setSearchingPointId(point.id); setActivePlacementPointId(null); }} type="button">Search</button><button onClick={() => { setSelectedPointId(point.id); setActivePlacementPointId(point.id); setSearchingPointId(null); }} type="button">Place {routePointIdentity(points, index).token} on map</button></div>}
               </div>
               <div className="stop-actions">
                 {index > 0 && index < points.length - 1 ? <>
-                   <button aria-label={`Drag ${pointLabel(point, index, points.length)} to reorder`} className="drag-waypoint" draggable onDragEnd={() => setDraggingPointId(null)} onDragStart={(event) => beginWaypointDrag(event, point.id)} type="button"><span aria-hidden="true">⠿</span><small>Drag</small></button>
+                   <button aria-label={`Drag ${routePointIdentity(points, index).token} to reorder`} className="drag-waypoint" draggable onDragEnd={() => setDraggingPointId(null)} onDragStart={(event) => beginWaypointDrag(event, point.id)} type="button"><span aria-hidden="true">⠿</span><small>Drag</small></button>
                    <button aria-label="Move waypoint up" disabled={index === 1} onClick={() => movePoint(index, -1)} type="button">↑</button>
                   <button aria-label="Move waypoint down" disabled={index === points.length - 2} onClick={() => movePoint(index, 1)} type="button">↓</button>
-                  <button aria-label="Remove waypoint" onClick={() => { markChanged(); setPoints((current) => current.filter((item) => item.id !== point.id)); }} type="button">×</button>
+                   <button aria-label="Remove waypoint" onClick={() => { markChanged(); if (activePlacementPointId === point.id) setActivePlacementPointId(null); if (selectedPointId === point.id) setSelectedPointId(null); setPoints((current) => current.filter((item) => item.id !== point.id)); }} type="button">×</button>
                 </> : null}
               </div>
               </li>
-              {index === 0 ? <li className="waypoint-insert"><div><p className="kicker">BUILD THE RIDE</p><strong>Add a point between Start and Finish</strong><small>Plan a stop for fuel, food, or regroup—or keep the group on a road you picked.</small></div><div className="insert-actions"><button disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button">＋ Plan a stop</button><button disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button">＋ Keep riding</button></div></li> : null}
+              {index === 0 ? <li className="waypoint-insert"><div><p className="kicker">BUILD THE RIDE</p><strong>Add a point between Start and Finish</strong><small>Add only the point you intend to place.</small></div><div className="insert-actions"><button disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button">＋ Add stop</button><button disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button">＋ Add ride-through road</button></div></li> : null}
             </Fragment>)}
           </ol>
           <fieldset className="route-options"><legend>Road preferences</legend>
@@ -368,29 +439,40 @@ export function RoutePlannerPage() {
             <label><input checked={avoidTolls} onChange={(event) => { markChanged(); setAvoidTolls(event.target.checked); }} type="checkbox" /> Avoid tolls</label>
             <label><input checked={avoidFerries} onChange={(event) => { markChanged(); setAvoidFerries(event.target.checked); }} type="checkbox" /> Avoid ferries</label>
           </fieldset>
-          <section className="smart-stops" aria-labelledby="smart-stops-title"><p className="kicker">SMART STOPS</p><h2 id="smart-stops-title">Fuel and crew-break windows.</h2><p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p><div className="smart-stop-inputs"><label><span>Comfortable range</span><input inputMode="numeric" max="400" min="40" onChange={(event) => setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3))} value={fuelRangeMiles} /> mi</label><label><span>Keep in reserve</span><input inputMode="numeric" max="50" min="5" onChange={(event) => setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2))} value={fuelReservePercent} /> %</label></div>{smartStops ? smartStops.length ? <ol className="smart-stop-list">{smartStops.map((mile, index) => <li key={mile}><b>Stop {index + 1}</b><span>Start looking near mile {Math.max(1, mile - 15)} · fuel by mile {mile}</span></li>)}</ol> : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}</section>
+          <section className="smart-stops" aria-labelledby="smart-stops-title"><p className="kicker">SMART STOPS</p><h2 id="smart-stops-title">Fuel and crew-break windows.</h2><p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p>{garage.length ? <label><span>Ride this bike</span><select value={selectedBikeId} onChange={(event) => { const bike = garage.find((candidate) => candidate.id === event.target.value); const plan = bike && fuelPlanForBike(bike, Number(fuelReservePercent)); setSelectedBikeId(event.target.value); if (plan) { setFuelRangeMiles(String(plan.rangeMiles)); setFuelSource(plan.source); } }}><option value="manual">Use a route-only plan</option>{garage.map((bike) => <option key={bike.id} value={bike.id}>{bike.label}{bike.isActive ? ' (active)' : ''}</option>)}</select></label> : <small>No garage bike is required. Use a range you trust for this ride.</small>}<small className="point-purpose">{fuelPlanSnapshot ? plannerFuelSourceLabel(fuelPlanSnapshot.source) : 'Enter a comfortable range between 40 and 400 miles.'}{fuelPlanSnapshot?.bikeLabel ? ` · ${fuelPlanSnapshot.bikeLabel}` : ''}. This stays private to you.</small><div className="smart-stop-inputs"><label><span>Comfortable range</span><input inputMode="numeric" max="400" min="40" onChange={(event) => { setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} value={fuelRangeMiles} /> mi</label><label><span>Keep in reserve</span><input inputMode="numeric" max="50" min="5" onChange={(event) => { setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} value={fuelReservePercent} /> %</label></div>{smartStops ? smartStops.length ? <ol className="smart-stop-list">{smartStops.map((mile, index) => <li key={mile}><b>Fuel window {index + 1}</b><span>Start looking near mile {Math.max(1, mile - 15)} · aim to fuel by mile {mile}</span><button className="text-button" disabled={points.length >= 27} onClick={() => addFuelStop(mile)} type="button">Add fuel stop near this window</button></li>)}</ol> : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}</section>
         </aside>
         <div className="map-canvas route-preview-canvas">
-          <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.flatMap((point, index) => typeof point.latitude === 'number' && typeof point.longitude === 'number' ? [{ ...point, latitude: point.latitude, longitude: point.longitude, ordinal: index + 1 }] : [])} routePoints={plottedPoints} showTraffic={showTraffic} />
+          <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} onPointSelected={selectPoint} points={points.flatMap((point, index) => typeof point.latitude === 'number' && typeof point.longitude === 'number' ? [{ ...point, latitude: point.latitude, longitude: point.longitude, ...routePointIdentity(points, index), selected: point.id === selectedPointId }] : [])} routePoints={plottedPoints} selectedPointId={selectedPointId} showTraffic={showTraffic} />
           <div className="map-route-summary">
             <div><p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
-              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Set Start and Finish, then add the points that make this your ride. Drag the grip beside a waypoint and the map updates to match.'}</strong>
-              <small className="route-key"><i className="stop-key" /> Planned stop = pull over <i className="via-key" /> Keep riding = stay on the selected road</small>
+               <strong>{freshPreview ? `${miles(preview!.distanceMeters)} · ${rideTime(preview!.durationSeconds)}` : activePlacementIdentity ? `Place ${activePlacementIdentity.token} · ${activePlacementIdentity.purpose}. Click the road you want the group to follow.` : 'Select a route point, then use its Search or Place on map control. Map clicks never create surprise points.'}</strong>
+              <small className="route-key"><i className="stop-key" /> Stop here = pull over <i className="via-key" /> Ride through = hold the selected road</small>
             </div>
             <div className="route-tools" aria-label="Route tools">
               <label className="map-toggle"><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Traffic <small>live road flow</small></label>
-              <button className="secondary-button weather-button" disabled={!preview || busy !== null} onClick={() => void runWeather()} title={preview ? 'Show weather at the start, midpoint, and finish' : 'Preview the route first so KSU can check conditions along the actual road'} type="button">{busy === 'weather' ? 'Checking route weather…' : weather ? 'Refresh route weather' : 'Check route weather'}</button>
+              <button className="secondary-button weather-button" disabled={!freshPreview || busy !== null} onClick={() => void runWeather()} title={freshPreview ? 'Show conditions at the start, midpoint, and finish' : 'Preview the updated route first'} type="button">{busy === 'weather' ? 'Checking conditions…' : weather ? 'Refresh conditions' : 'Check route conditions'}</button>
             </div>
-            <div className="map-point-picker" aria-label="Choose the type of next map pin">
-              <span>Next map pin</span>
-              <button aria-pressed={mapPointKind === 'via'} className={mapPointKind === 'via' ? 'selected' : ''} onClick={() => setMapPointKind('via')} type="button">Keep riding <small>stay on this road</small></button>
-              <button aria-pressed={mapPointKind === 'stop'} className={mapPointKind === 'stop' ? 'selected' : ''} onClick={() => setMapPointKind('stop')} type="button">Plan a stop <small>pull over</small></button>
-            </div>
-            {preview ? <div className="route-support" aria-live="polite"><p className="kicker">FUEL & CREW BREAKS</p>{smartStops?.length ? <><strong>{smartStops.length} suggested {smartStops.length === 1 ? 'break window' : 'break windows'}</strong><small>First: start looking near mile {Math.max(1, smartStops[0] - 15)} · fuel by mile {smartStops[0]}. KSU plans the window; you choose the actual stop.</small></> : <small>This ride fits inside your current fuel plan. Change your comfortable range on the left to tailor it.</small>}</div> : null}
-            {handoff ? <a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">Open in Google Maps</a> : null}
+            {previewStale ? <div className="route-support" aria-live="polite"><strong>Route changed after preview.</strong><small>Preview the updated route before checking conditions or opening Google Maps.</small></div> : freshPreview ? <div className="route-support" aria-live="polite"><p className="kicker">FUEL & CREW BREAKS</p>{smartStops?.length ? <><strong>{smartStops.length} suggested {smartStops.length === 1 ? 'break window' : 'break windows'}</strong><small>First: start looking near mile {Math.max(1, smartStops[0] - 15)} · fuel by mile {smartStops[0]}. KSU plans the window; you choose the actual stop.</small></> : <small>This ride fits inside your current fuel plan. Change your comfortable range on the left to tailor it.</small>}</div> : null}
+            {handoffs[0] ? <a className="secondary-button" href={handoffs[0].url} rel="noreferrer" target="_blank">{handoffs[0].segmentCount > 1 ? `Open leg 1 of ${handoffs[0].segmentCount} in Google Maps` : 'Open the full route in Google Maps'}</a> : null}
           </div>
         </div>
       </div>
+      <section className="planner-action-rail" aria-labelledby="planner-action-rail-title">
+        <header><div><p className="kicker">NEXT RIDER JOB</p><h2 id="planner-action-rail-title">{freshPreview ? 'Route is fresh. Keep the plan honest.' : 'Preview the route before downstream actions.'}</h2></div><p className={`route-freshness ${freshPreview ? 'fresh' : 'stale'}`}>{freshPreview ? `Fresh route preview · calculated ${formatTimestamp(preview!.calculatedAt)} · valid until ${formatTimestamp(preview!.expiresAt)}` : preview ? 'Route changed after preview · conditions, save, and handoff are paused.' : 'No route preview yet.'}</p></header>
+        <div className="planner-action-grid">
+          <article className={nextAction === 'review' ? 'primary' : ''}><span>1</span><h3>Review the road</h3><p>{freshPreview ? `${miles(preview!.distanceMeters)} · ${rideTime(preview!.durationSeconds)} · ${points.length} route points.` : 'Preview the current itinerary to calculate distance, time, and a fresh road shape.'}</p><button className="secondary-button" disabled={!previewReady || busy !== null} onClick={() => void runPreview()} type="button">{previewStale ? 'Preview updated route' : 'Review route preview'}</button></article>
+          <article><span>2</span><h3>Plan fuel & stops</h3><p>{smartStops?.length ? `${smartStops.length} fuel window${smartStops.length === 1 ? '' : 's'} are ready above. Choose each actual stop yourself.` : 'Fuel windows appear after a route preview; KSU never inserts a business for you.'}</p><button className="text-button" onClick={() => document.getElementById('smart-stops-title')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} type="button">Review fuel plan</button></article>
+          <article className={nextAction === 'conditions' ? 'primary' : ''}><span>3</span><h3>Check conditions</h3><p>{weather ? `Conditions checked ${formatTimestamp(weather.generatedAt)}. They are planning signals, not a safety guarantee.` : 'Check Start, Mid-route, and Finish only after a fresh preview.'}</p><button className="secondary-button" disabled={!freshPreview || busy !== null} onClick={() => void runWeather()} type="button">{busy === 'weather' ? 'Checking conditions…' : weather ? 'Refresh conditions' : 'Check route conditions'}</button></article>
+          <article className={nextAction === 'save' ? 'primary' : ''}><span>4</span><h3>Save route</h3><p>{saved ? `Saved as revision ${saved.revisionNumber}. Editing the draft will create the next immutable revision.` : 'Saving creates a private, editable KSU route revision. It does not publish or share it.'}</p><button className="secondary-button" disabled={!freshPreview || busy !== null} onClick={() => void runSave()} type="button">{busy === 'save' ? 'Saving…' : saved ? `Saved revision ${saved.revisionNumber}` : 'Save route'}</button></article>
+          <article className={nextAction === 'handoff' ? 'primary' : ''}><span>5</span><h3>Navigate in Google Maps</h3><p>{handoffs.length ? handoffs.length === 1 ? 'One supported leg. Google Maps gets the full route link.' : `${handoffs.length} legs. Continue with the next leg at each boundary stop.` : 'A fresh preview is required before Google Maps handoff.'}</p>{handoffs.map((handoff) => <div className="handoff-diagnostic" key={handoff.segmentNumber}><a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">{handoff.segmentCount > 1 ? `Open leg ${handoff.segmentNumber} of ${handoff.segmentCount}` : 'Open the full route in Google Maps'}</a><small>{handoff.segmentCount > 1 && handoff.nextLegLabel ? `Next leg: ${handoff.nextLegLabel}. ` : ''}{handoff.fidelityWarning ?? handoff.browserWaypointWarning}</small></div>)}</article>
+          <article className="planner-sharing-state"><span>6</span><h3>Share or add to a ride</h3><p>{saved ? 'This saved revision is still private. Open it to choose an authorized ride or sharing flow; a route is never published just because it was saved.' : 'Save a revision first. KSU keeps saving, sharing, and publishing as separate decisions.'}</p>{saved ? <><Link className="secondary-button" to={`/app/routes/${saved.routePlanId}`}>Open saved route</Link><button className="text-button" onClick={() => window.print()} type="button">Print private route sheet</button><small>QR sharing stays off until an authorization-appropriate route link exists.</small></> : null}</article>
+        </div>
+      </section>
+      {saved && freshPreview ? <section className="print-route-sheet" aria-label="Private printable route sheet">
+        <p>KSU PRIVATE ROUTE SHEET · Revision {saved.revisionNumber}</p><h2>{title.trim() || 'Untitled route'}</h2><p>{miles(preview!.distanceMeters)} · {rideTime(preview!.durationSeconds)} · Previewed {formatTimestamp(preview!.calculatedAt)}</p>
+        <ol>{points.map((point, index) => <li key={point.id}><b>{routePointIdentity(points, index).token}</b><span>{point.displayName || 'Needs a location'}{index > 0 && index < points.length - 1 ? ` · ${routePointIdentity(points, index).purpose}` : ''}</span></li>)}</ol>
+        <small>Private saved route. Share or publish only through an authorized KSU flow.</small>
+      </section> : null}
       {weather ? <section className="route-weather" aria-labelledby="route-weather-title" ref={weatherRef} tabIndex={-1}>
         <div className="route-weather-heading">
           <div><p className="kicker">ROUTE BRIEF</p><h2 id="route-weather-title">The things worth thinking about before you roll.</h2></div>

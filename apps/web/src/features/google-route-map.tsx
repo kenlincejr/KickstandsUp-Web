@@ -1,16 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Coordinate = { latitude: number; longitude: number };
-// `ordinal` is the waypoint's position in the full itinerary, not its position
-// in this resolved-only marker list. Empty fields must not make later pins look
-// like an earlier stop.
-type MapPoint = Coordinate & { id: string; displayName: string; kind: 'origin' | 'stop' | 'via' | 'destination'; ordinal: number };
-
-function markerLabel(point: MapPoint) {
-  if (point.kind === 'origin') return 'S';
-  if (point.kind === 'destination') return 'F';
-  return String(point.ordinal - 1);
-}
+// Tokens come from the full itinerary, never from the resolved marker list.
+// Empty points must not make W3 appear as W2 on the map.
+type MapPoint = Coordinate & { id: string; displayName: string; kind: 'origin' | 'stop' | 'via' | 'destination'; token: string; purpose: string; selected: boolean };
 
 type GoogleListener = { remove(): void };
 type GoogleMap = {
@@ -19,7 +12,7 @@ type GoogleMap = {
   setZoom(zoom: number): void;
 };
 type GoogleBounds = { extend(point: { lat: number; lng: number }): void };
-type GoogleMarker = { setMap(map: GoogleMap | null): void };
+type GoogleMarker = { map: GoogleMap | null };
 type GooglePolyline = { setMap(map: GoogleMap | null): void };
 type GoogleTrafficLayer = { setMap(map: GoogleMap | null): void };
 type GoogleMaps = {
@@ -27,6 +20,7 @@ type GoogleMaps = {
   Marker: new (options: Record<string, unknown>) => GoogleMarker;
   Polyline: new (options: Record<string, unknown>) => GooglePolyline;
   TrafficLayer: new () => GoogleTrafficLayer;
+  marker: { AdvancedMarkerElement: new (options: Record<string, unknown>) => GoogleMarker };
   LatLngBounds: new () => GoogleBounds;
   event: { addListener(instance: object, eventName: string, handler: (event: { latLng?: { lat(): number; lng(): number } }) => void): GoogleListener };
 };
@@ -50,21 +44,23 @@ function loadMaps(key: string) {
     };
     (window as unknown as Record<string, unknown>)[callback] = finish;
     script.async = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=${callback}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&libraries=marker&callback=${callback}`;
     script.onerror = () => reject(new Error('Google Maps could not load. Check the browser-key restrictions.'));
     document.head.append(script);
   });
   return loader;
 }
 
-export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic, onMapClick, onPointMoved }: {
+export function GoogleRouteMap({ apiKey, mapId, points, routePoints, selectedPointId, showTraffic, onMapClick, onPointMoved, onPointSelected }: {
   apiKey?: string;
   mapId?: string;
   points: MapPoint[];
   routePoints: Coordinate[];
+  selectedPointId: string | null;
   showTraffic: boolean;
   onMapClick: (coordinate: Coordinate) => void;
   onPointMoved: (id: string, coordinate: Coordinate) => void;
+  onPointSelected: (id: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<GoogleMap | null>(null);
@@ -72,10 +68,12 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
   const traffic = useRef<GoogleTrafficLayer | null>(null);
   const clickHandler = useRef(onMapClick);
   const moveHandler = useRef(onPointMoved);
+  const selectHandler = useRef(onPointSelected);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   clickHandler.current = onMapClick;
   moveHandler.current = onPointMoved;
+  selectHandler.current = onPointSelected;
 
   useEffect(() => {
     if (!apiKey || !host.current) return;
@@ -108,18 +106,18 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
 
   useEffect(() => {
     if (!map.current || !maps.current) return;
-    const { Marker, Polyline, LatLngBounds, event } = maps.current;
+    const { Polyline, LatLngBounds, event } = maps.current;
     const markers = points.map((point) => {
-      const marker = new Marker({
-        map: map.current, position: { lat: point.latitude, lng: point.longitude }, label: { text: markerLabel(point), color: '#171006', fontWeight: '800' },
-        title: point.displayName || (point.kind === 'origin' ? 'Start' : point.kind === 'destination' ? 'Finish' : `Waypoint ${point.ordinal - 1}`), draggable: true,
-        // Amber pins mean the group plans to pull over. Blue pins are shaping
-        // points: they keep the route on a chosen road without a stop.
-        icon: markerIcon(point.kind),
+      const marker = new maps.current!.marker.AdvancedMarkerElement({
+        map: map.current, position: { lat: point.latitude, lng: point.longitude },
+        title: `${point.token}, ${point.purpose}, ${point.displayName}. Press Enter to edit.`,
+        gmpClickable: true, gmpDraggable: true, zIndex: point.id === selectedPointId ? 100 : 1,
+        content: markerContent(point),
       });
       event.addListener(marker, 'dragend', (mapEvent) => {
         if (mapEvent.latLng) moveHandler.current(point.id, { latitude: mapEvent.latLng.lat(), longitude: mapEvent.latLng.lng() });
       });
+      event.addListener(marker, 'gmp-click', () => selectHandler.current(point.id));
       return marker;
     });
     // Keep the route above Google traffic. Without an explicit z-index, dense
@@ -139,16 +137,19 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
       if (visible.length === 1) { map.current.setCenter({ lat: visible[0].latitude, lng: visible[0].longitude }); map.current.setZoom(12); }
       else map.current.fitBounds(bounds, 64);
     }
-    return () => { markers.forEach((marker) => marker.setMap(null)); routeCasing?.setMap(null); line?.setMap(null); };
-  }, [points, routePoints]);
+    return () => { markers.forEach((marker) => { marker.map = null; }); routeCasing?.setMap(null); line?.setMap(null); };
+  }, [points, routePoints, selectedPointId]);
 
   if (!apiKey) return <div className="map-placeholder"><p className="kicker">MAP SETUP REQUIRED</p><h2>The route engine is ready.</h2><p>Add the dedicated, referrer-restricted Google Maps browser key to render the live map. Place search and route calculations continue through KSU’s protected server boundary.</p></div>;
   if (error) return <div className="map-placeholder"><p className="kicker">MAP UNAVAILABLE</p><h2>Google Maps did not load.</h2><p>{error}</p></div>;
-  return <div className="google-route-map" aria-label="Route map. Click to add a waypoint; drag a numbered marker to refine its position." ref={host} role="application" />;
+  return <div className="google-route-map" aria-label="Route map. Select a route point, then use Place on map to place that exact point. Drag a marker to refine it." ref={host} role="application" />;
 }
 
-function markerIcon(kind: MapPoint['kind']) {
-  const color = kind === 'via' ? '#79b7ff' : kind === 'stop' ? '#ffb52b' : '#f26f4f';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44"><path fill="${color}" stroke="#171006" stroke-width="2" d="M18 1C9.7 1 3 7.7 3 16c0 11.2 15 27 15 27s15-15.8 15-27C33 7.7 26.3 1 18 1Z"/><circle cx="18" cy="16" r="8" fill="#fff5df"/></svg>`;
-  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: { width: 36, height: 44 }, labelOrigin: { x: 18, y: 16 } };
+function markerContent(point: MapPoint) {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = `route-map-marker ${point.kind} ${point.selected ? 'selected' : ''}`;
+  element.textContent = point.token;
+  element.setAttribute('aria-label', `${point.token}, ${point.purpose}, ${point.displayName}. Press Enter to edit.`);
+  return element;
 }
