@@ -47,10 +47,19 @@ describe('route planner contract', () => {
 
     expect(repository).toContain("edgeRequest<RouteWeatherResponse>('route-weather'");
     expect(repository).toContain('Refresh the route preview before checking conditions.');
-    expect(planner).toContain('Weather along route');
-    expect(planner).toContain('Stop = pull over');
-    expect(planner).toContain('Pass-through = keep rolling');
+    expect(planner).toContain('Check route weather');
+    expect(planner).toContain('Planned stop = pull over');
+    expect(planner).toContain('Keep riding = stay on the selected road');
     expect(planner).toContain('Next map pin');
+    expect(planner).toContain('Add a point between Start and Finish');
+    expect(planner).toContain('return `Waypoint ${index}`');
+    expect(planner).toContain('Drag the grip beside a waypoint');
+    expect(planner).toContain('FUEL & CREW BREAKS');
+    expect(planner).toContain("scrollIntoView({ behavior: 'smooth', block: 'start' })");
+    expect(planner).toContain('beginWaypointDrag');
+    expect(planner).toContain('ordinal: index + 1');
+    expect(readFileSync(resolve(import.meta.dirname, 'google-route-map.tsx'), 'utf8')).toContain("return 'S'");
+    expect(readFileSync(resolve(import.meta.dirname, 'google-route-map.tsx'), 'utf8')).toContain("return 'F'");
     expect(planner).toContain('still needs a location');
     expect(planner).toContain("document.addEventListener('pointerdown'");
     expect(planner).toContain('Weather conditions are temporarily unavailable. Your route is still ready.');

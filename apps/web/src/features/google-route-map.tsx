@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Coordinate = { latitude: number; longitude: number };
-type MapPoint = Coordinate & { id: string; displayName: string; kind: 'origin' | 'stop' | 'via' | 'destination' };
+// `ordinal` is the waypoint's position in the full itinerary, not its position
+// in this resolved-only marker list. Empty fields must not make later pins look
+// like an earlier stop.
+type MapPoint = Coordinate & { id: string; displayName: string; kind: 'origin' | 'stop' | 'via' | 'destination'; ordinal: number };
+
+function markerLabel(point: MapPoint) {
+  if (point.kind === 'origin') return 'S';
+  if (point.kind === 'destination') return 'F';
+  return String(point.ordinal - 1);
+}
 
 type GoogleListener = { remove(): void };
 type GoogleMap = {
@@ -100,11 +109,10 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
   useEffect(() => {
     if (!map.current || !maps.current) return;
     const { Marker, Polyline, LatLngBounds, event } = maps.current;
-    const markers = points.map((point, index) => {
-      const isStop = point.kind === 'stop';
+    const markers = points.map((point) => {
       const marker = new Marker({
-        map: map.current, position: { lat: point.latitude, lng: point.longitude }, label: { text: String(index + 1), color: '#171006', fontWeight: '800' },
-        title: point.displayName || `Waypoint ${index + 1}`, draggable: true,
+        map: map.current, position: { lat: point.latitude, lng: point.longitude }, label: { text: markerLabel(point), color: '#171006', fontWeight: '800' },
+        title: point.displayName || (point.kind === 'origin' ? 'Start' : point.kind === 'destination' ? 'Finish' : `Waypoint ${point.ordinal - 1}`), draggable: true,
         // Amber pins mean the group plans to pull over. Blue pins are shaping
         // points: they keep the route on a chosen road without a stop.
         icon: markerIcon(point.kind),

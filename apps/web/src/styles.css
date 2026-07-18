@@ -118,7 +118,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .garage-bike .inline-actions { width: 100%; }
   .checkbox-group { display: grid; }
 }
-.planner-grid { min-height: 620px; display: grid; grid-template-columns: 360px 1fr; margin-top: 34px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.planner-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr); align-items: start; margin-top: 34px; border: 1px solid var(--line); border-radius: 14px; }
 .planner-panel { padding: 20px; background: #141910; }
 .metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .72rem; }
 .metric-row b { display: block; color: var(--ink); font-size: 1.25rem; }
@@ -152,7 +152,11 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .planner-title input, .stop-editor input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #4b513f; border-radius: 7px; outline: 0; background: #0d110b; color: var(--ink); }
 .planner-title input:focus, .stop-editor input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(245,166,35,.11); }
 .planner-stop-list { margin: 14px 0; padding: 0; list-style: none; }
-.planner-stop-list > li { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) 28px; gap: 10px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.planner-stop-list > .waypoint-row { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) 48px; gap: 10px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.planner-stop-list > .waypoint-row.dragging { opacity: .55; }
+.waypoint-insert { display: grid; gap: 10px; margin: 4px 0; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.waypoint-insert p { margin: 0 0 4px; }.waypoint-insert strong, .waypoint-insert small { display: block; }.waypoint-insert small { margin-top: 4px; color: var(--muted); font-size: .7rem; line-height: 1.35; }
+.insert-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.insert-actions button { min-height: 42px; border: 1px dashed #58604a; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }.insert-actions button:hover { border-color: var(--orange); background: rgba(245,166,35,.08); }
 .stop-number { width: 30px; height: 30px; display: grid; place-items: center; margin-top: 23px; border-radius: 50%; background: var(--orange); color: #171006; font-size: .72rem; font-weight: 900; }
 .stop-editor { position: relative; min-width: 0; }
 .stop-editor label { display: grid; gap: 5px; }
@@ -167,13 +171,14 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .place-results button { width: 100%; display: grid; gap: 3px; padding: 12px; border: 0; border-bottom: 1px solid var(--line); text-align: left; background: transparent; color: var(--ink); cursor: pointer; }
 .place-results button:hover { background: #25301c; }
 .place-results small { color: var(--muted); }
-.stop-actions { display: grid; gap: 3px; padding-top: 18px; }
+.stop-actions { display: grid; gap: 5px; padding-top: 18px; }
 .stop-actions button { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.stop-actions .drag-waypoint { width: 48px; height: 48px; display: grid; place-items: center; gap: 0; border-color: #647d42; color: var(--ink); cursor: grab; font-size: 1.25rem; }.stop-actions .drag-waypoint small { margin-top: -8px; font-size: .55rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }.stop-actions .drag-waypoint:active { cursor: grabbing; }
 .route-options { display: grid; gap: 10px; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .route-options legend { padding: 0 5px; color: var(--ink); font-size: .78rem; font-weight: 800; }
 .route-options label { display: flex; gap: 9px; align-items: center; font-size: .82rem; }
-.route-preview-canvas { position: relative; align-items: stretch; min-height: 620px; }
-.google-route-map { width: 100%; min-height: 620px; background: #10150d; }
+.route-preview-canvas { position: sticky; top: 16px; align-items: stretch; height: 620px; min-height: 620px; padding: 0; }
+.google-route-map { width: 100%; height: 100%; min-height: 0; background: #10150d; }
 .map-route-summary { position: absolute; z-index: 1; right: 20px; bottom: 20px; display: grid; grid-template-columns: minmax(230px, 1fr) auto; gap: 10px 14px; max-width: min(720px, calc(100% - 40px)); padding: 14px; border: 1px solid #596448; border-radius: 9px; background: rgba(17,22,13,.94); color: var(--ink); box-shadow: 0 8px 26px rgba(0,0,0,.35); }
 .map-route-summary .kicker { margin: 0; }
 .map-route-summary strong { font-size: .78rem; }
@@ -190,6 +195,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .map-point-picker button { display: inline-flex; gap: 5px; align-items: baseline; min-height: 32px; padding: 6px 9px; border: 1px solid #4b513f; border-radius: 6px; background: #10140d; color: var(--muted); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 800; }
 .map-point-picker button.selected { border-color: var(--orange); background: rgba(245,166,35,.13); color: var(--ink); }
 .map-point-picker small { color: inherit; font-size: .65rem; font-weight: 500; }
+.route-support { grid-column: 1 / -1; display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }.route-support .kicker { margin: 0; }.route-support strong { font-size: .76rem; }.route-support small { color: var(--muted); font-size: .68rem; line-height: 1.35; }
 .route-weather { margin-top: 20px; padding: 24px; border: 1px solid #596448; border-radius: 14px; background: linear-gradient(145deg, rgba(25,32,20,.98), rgba(14,18,12,.98)); }
 .route-weather-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 20px; }
 .route-weather-heading .kicker { margin: 0 0 6px; }
@@ -275,6 +281,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .rail nav { min-width: 0; flex: 1 1 auto; display: flex; margin: 0; overflow-x: auto; }
   .rail-account { display: none; }
   .planner-grid { grid-template-columns: 1fr; }
+  .route-preview-canvas { position: relative; top: auto; height: 420px; min-height: 420px; }
   .map-canvas { min-height: 420px; }
 }
 @media (max-width: 600px) {
@@ -287,12 +294,12 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .route-header-actions .button-row { justify-content: stretch; }
   .tool-header .button-row { display: grid; }
   .planner-panel { padding: 14px; }
-  .planner-stop-list > li { grid-template-columns: 32px minmax(0, 1fr) 28px; }
+  .planner-stop-list > .waypoint-row { grid-template-columns: 32px minmax(0, 1fr) 48px; }
   .stop-number { width: 26px; height: 26px; }
   .map-canvas { min-height: 360px; padding: 18px; }
   .route-plot-card { min-height: 420px; padding: 20px; }
   .route-preview-actions { align-items: stretch; flex-direction: column; }
-  .route-preview-canvas, .google-route-map { min-height: 420px; }
+  .route-preview-canvas, .google-route-map { height: 420px; min-height: 420px; }
   .map-route-summary { right: 12px; bottom: 12px; grid-template-columns: 1fr; max-width: calc(100% - 24px); }
   .route-tools { align-items: stretch; flex-direction: column; }
   .route-weather { padding: 18px; }
