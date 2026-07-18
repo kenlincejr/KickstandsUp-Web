@@ -195,6 +195,7 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .map-point-picker button { display: inline-flex; gap: 5px; align-items: baseline; min-height: 32px; padding: 6px 9px; border: 1px solid #4b513f; border-radius: 6px; background: #10140d; color: var(--muted); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 800; }
 .map-point-picker button.selected { border-color: var(--orange); background: rgba(245,166,35,.13); color: var(--ink); }
 .map-point-picker small { color: inherit; font-size: .65rem; font-weight: 500; }
+.route-support { grid-column: 1 / -1; display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }.route-support .kicker { margin: 0; }.route-support strong { font-size: .76rem; }.route-support small { color: var(--muted); font-size: .68rem; line-height: 1.35; }
 .route-weather { margin-top: 20px; padding: 24px; border: 1px solid #596448; border-radius: 14px; background: linear-gradient(145deg, rgba(25,32,20,.98), rgba(14,18,12,.98)); }
 .route-weather-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 20px; }
 .route-weather-heading .kicker { margin: 0 0 6px; }
