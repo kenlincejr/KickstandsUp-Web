@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Coordinate = { latitude: number; longitude: number };
-type MapPoint = Coordinate & { id: string; displayName: string };
+type MapPoint = Coordinate & { id: string; displayName: string; kind: 'origin' | 'stop' | 'via' | 'destination' };
 
 type GoogleListener = { remove(): void };
 type GoogleMap = {
@@ -101,18 +101,28 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
     if (!map.current || !maps.current) return;
     const { Marker, Polyline, LatLngBounds, event } = maps.current;
     const markers = points.map((point, index) => {
+      const isStop = point.kind === 'stop';
       const marker = new Marker({
-        map: map.current, position: { lat: point.latitude, lng: point.longitude }, label: String(index + 1),
+        map: map.current, position: { lat: point.latitude, lng: point.longitude }, label: { text: String(index + 1), color: '#171006', fontWeight: '800' },
         title: point.displayName || `Waypoint ${index + 1}`, draggable: true,
+        // Amber pins mean the group plans to pull over. Blue pins are shaping
+        // points: they keep the route on a chosen road without a stop.
+        icon: markerIcon(point.kind),
       });
       event.addListener(marker, 'dragend', (mapEvent) => {
         if (mapEvent.latLng) moveHandler.current(point.id, { latitude: mapEvent.latLng.lat(), longitude: mapEvent.latLng.lng() });
       });
       return marker;
     });
+    // Keep the route above Google traffic. Without an explicit z-index, dense
+    // traffic lines can visually erase the rider's planned route.
+    const routeCasing = routePoints.length > 1 ? new Polyline({
+      map: map.current, path: routePoints.map((point) => ({ lat: point.latitude, lng: point.longitude })),
+      geodesic: true, strokeColor: '#1a1207', strokeOpacity: .92, strokeWeight: 11, zIndex: 90,
+    }) : null;
     const line = routePoints.length > 1 ? new Polyline({
       map: map.current, path: routePoints.map((point) => ({ lat: point.latitude, lng: point.longitude })),
-      geodesic: true, strokeColor: '#f5a623', strokeOpacity: 1, strokeWeight: 5,
+      geodesic: true, strokeColor: '#ffb52b', strokeOpacity: 1, strokeWeight: 6, zIndex: 100,
     }) : null;
     const visible = routePoints.length ? routePoints : points;
     if (visible.length) {
@@ -121,10 +131,16 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, showTraffic
       if (visible.length === 1) { map.current.setCenter({ lat: visible[0].latitude, lng: visible[0].longitude }); map.current.setZoom(12); }
       else map.current.fitBounds(bounds, 64);
     }
-    return () => { markers.forEach((marker) => marker.setMap(null)); line?.setMap(null); };
+    return () => { markers.forEach((marker) => marker.setMap(null)); routeCasing?.setMap(null); line?.setMap(null); };
   }, [points, routePoints]);
 
   if (!apiKey) return <div className="map-placeholder"><p className="kicker">MAP SETUP REQUIRED</p><h2>The route engine is ready.</h2><p>Add the dedicated, referrer-restricted Google Maps browser key to render the live map. Place search and route calculations continue through KSU’s protected server boundary.</p></div>;
   if (error) return <div className="map-placeholder"><p className="kicker">MAP UNAVAILABLE</p><h2>Google Maps did not load.</h2><p>{error}</p></div>;
   return <div className="google-route-map" aria-label="Route map. Click to add a waypoint; drag a numbered marker to refine its position." ref={host} role="application" />;
+}
+
+function markerIcon(kind: MapPoint['kind']) {
+  const color = kind === 'via' ? '#79b7ff' : kind === 'stop' ? '#ffb52b' : '#f26f4f';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44"><path fill="${color}" stroke="#171006" stroke-width="2" d="M18 1C9.7 1 3 7.7 3 16c0 11.2 15 27 15 27s15-15.8 15-27C33 7.7 26.3 1 18 1Z"/><circle cx="18" cy="16" r="8" fill="#fff5df"/></svg>`;
+  return { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: { width: 36, height: 44 }, labelOrigin: { x: 18, y: 16 } };
 }

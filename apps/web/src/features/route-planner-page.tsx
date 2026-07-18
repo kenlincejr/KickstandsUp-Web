@@ -15,7 +15,7 @@ import {
   type PlannerWaypoint,
   type RouteDefinition,
   type RoutePreview,
-  type RouteWeatherCondition,
+  type RouteWeatherResponse,
   type SavedRevision,
 } from './route-planner-repository';
 
@@ -41,6 +41,16 @@ function rideTime(seconds: number) {
   return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 }
 
+function pointLabel(point: DraftPoint, index: number, total: number) {
+  if (index === 0) return 'Start';
+  if (index === total - 1) return 'Finish';
+  return point.kind === 'stop' ? `Stop ${index}` : `Pass-through ${index}`;
+}
+
+function pointPurpose(point: DraftPoint) {
+  return point.kind === 'stop' ? 'Plan to stop here — fuel, food, meetup, or a break.' : 'Ride through here — this shapes the road without planning a stop.';
+}
+
 export function RoutePlannerPage() {
   const [title, setTitle] = useState('My next ride');
   const [points, setPoints] = useState<DraftPoint[]>([blankPoint('origin'), blankPoint('destination')]);
@@ -48,15 +58,17 @@ export function RoutePlannerPage() {
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
   const [showTraffic, setShowTraffic] = useState(false);
+  const [mapPointKind, setMapPointKind] = useState<'stop' | 'via'>('via');
   const [searchingPointId, setSearchingPointId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [busy, setBusy] = useState<'preview' | 'save' | 'place' | 'weather' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RoutePreview | null>(null);
-  const [weather, setWeather] = useState<RouteWeatherCondition[] | null>(null);
+  const [weather, setWeather] = useState<RouteWeatherResponse | null>(null);
   const [saved, setSaved] = useState<SavedRevision | null>(null);
   const [routePlanId, setRoutePlanId] = useState<string | undefined>();
   const placeSession = useRef(crypto.randomUUID());
+  const plannerRef = useRef<HTMLElement>(null);
 
   const definition = useMemo<RouteDefinition | null>(() => {
     const resolved = points.every((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.source && point.coordinateProvenance);
@@ -68,6 +80,13 @@ export function RoutePlannerPage() {
   }, [avoidFerries, avoidHighways, avoidTolls, points, title]);
 
   const activeSearch = points.find((point) => point.id === searchingPointId);
+  const incompletePoints = points.filter((point) => !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || !point.displayName.trim());
+  const previewReady = Boolean(definition && isCompleteDefinition(definition));
+  const firstIncomplete = incompletePoints[0];
+  const firstIncompleteIndex = firstIncomplete ? points.indexOf(firstIncomplete) : -1;
+  const previewMessage = previewReady
+    ? 'Every point is set. Preview the actual roads, then check conditions.'
+    : firstIncomplete ? `${pointLabel(firstIncomplete, firstIncompleteIndex, points.length)} still needs a location. Search for it or choose the next map-pin type and click the map.` : 'Add a start and finish to begin.';
   useEffect(() => {
     if (!activeSearch || activeSearch.displayName.trim().length < 3 || activeSearch.googlePlaceId) {
       setSuggestions([]);
@@ -84,6 +103,23 @@ export function RoutePlannerPage() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [activeSearch?.displayName, activeSearch?.googlePlaceId, activeSearch?.id]);
 
+  useEffect(() => {
+    if (!searchingPointId) return;
+    const closeIfOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest('.stop-editor')) {
+        setSearchingPointId(null);
+        setSuggestions([]);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setSearchingPointId(null); setSuggestions([]); }
+    };
+    document.addEventListener('pointerdown', closeIfOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeIfOutside); document.removeEventListener('keydown', closeOnEscape); };
+  }, [searchingPointId]);
+
   const markChanged = () => {
     setPreview(null);
     setWeather(null);
@@ -94,6 +130,7 @@ export function RoutePlannerPage() {
   const updatePointQuery = (id: string, displayName: string) => {
     markChanged();
     setSearchingPointId(id);
+    setSuggestions([]);
     setPoints((current) => current.map((point) => point.id === id ? {
       ...point, displayName, latitude: undefined, longitude: undefined, googlePlaceId: undefined, source: undefined, coordinateProvenance: undefined,
     } : point));
@@ -122,18 +159,23 @@ export function RoutePlannerPage() {
     }
   };
 
-  const addStop = () => {
+  const addIntermediate = (kind: 'stop' | 'via') => {
     markChanged();
-    setPoints((current) => [...current.slice(0, -1), blankPoint('stop'), current.at(-1)!]);
+    const point = blankPoint(kind);
+    setSearchingPointId(point.id);
+    setSuggestions([]);
+    setPoints((current) => [...current.slice(0, -1), point, current.at(-1)!]);
   };
 
   const addMapPoint = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
     markChanged();
+    setSearchingPointId(null);
+    setSuggestions([]);
     setPoints((current) => {
       const location = { displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude, source: 'manual' as const, coordinateProvenance: 'ksu_customer' as const };
       if (!Number.isFinite(current[0]?.latitude)) return current.map((point, index) => index === 0 ? { ...point, ...location } : point);
       if (!Number.isFinite(current.at(-1)?.latitude)) return current.map((point, index) => index === current.length - 1 ? { ...point, ...location } : point);
-      return current.length >= 27 ? current : [...current.slice(0, -1), { id: crypto.randomUUID(), kind: 'stop' as const, ...location }, current.at(-1)!];
+      return current.length >= 27 ? current : [...current.slice(0, -1), { id: crypto.randomUUID(), kind: mapPointKind, ...location }, current.at(-1)!];
     });
   };
 
@@ -158,7 +200,8 @@ export function RoutePlannerPage() {
 
   const runPreview = async () => {
     if (!definition || !isCompleteDefinition(definition)) {
-      setError('Choose a start and finish from the search results before previewing.');
+      const missing = incompletePoints.map((point) => pointLabel(point, points.indexOf(point), points.length).toLowerCase());
+      setError(`Preview needs a resolved ${missing.join(', ')}. Pick a result from the place list or click the map to set it.`);
       return;
     }
     setBusy('preview');
@@ -187,35 +230,57 @@ export function RoutePlannerPage() {
     }
   };
 
-  const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
-  const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
+  const setIntermediateKind = (id: string, kind: 'stop' | 'via') => {
+    markChanged();
+    setPoints((current) => current.map((point) => point.id === id ? { ...point, kind } : point));
+  };
 
   const runWeather = async () => {
-    if (!preview || plottedPoints.length < 2) return;
+    if (!preview) return;
     setBusy('weather');
     setError(null);
-    const middle = plottedPoints[Math.floor((plottedPoints.length - 1) / 2)];
-    const samples = [
-      { label: 'Start', ...plottedPoints[0] },
-      ...(middle && plottedPoints.length > 2 ? [{ label: 'Mid-route', ...middle }] : []),
-      { label: 'Finish', ...plottedPoints.at(-1)! },
-    ];
     try {
-      setWeather(await getRouteWeather(samples));
+      setWeather(await getRouteWeather(preview));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'KSU could not check route conditions.');
+      setWeather(null);
+      setError(reason instanceof Error ? reason.message : 'Weather conditions are temporarily unavailable. Your route is still ready.');
     } finally {
       setBusy(null);
     }
   };
 
+  const clearRoute = () => {
+    if (!window.confirm('Clear this route and start over? This removes the unsaved waypoints, road preferences, and preview. Saved routes stay in My Routes.')) return;
+    setTitle('My next ride');
+    setPoints([blankPoint('origin'), blankPoint('destination')]);
+    setAvoidHighways(false);
+    setAvoidTolls(false);
+    setAvoidFerries(false);
+    setShowTraffic(false);
+    setSearchingPointId(null);
+    setSuggestions([]);
+    setPreview(null);
+    setWeather(null);
+    setSaved(null);
+    setRoutePlanId(undefined);
+    setError(null);
+    placeSession.current = crypto.randomUUID();
+  };
+
+  const plottedPoints = preview ? decodePolyline(preview.encodedPolyline) : definition?.waypoints ?? [];
+  const handoff = definition ? buildGoogleMapsHandoffs(definition.waypoints)[0] : null;
+
   return (
-    <section className="tool-page planner-page">
+    <section className="tool-page planner-page" ref={plannerRef}>
       <header className="tool-header">
         <div><p className="kicker">KSU ROUTE LAB</p><h1>Build the ride. Keep the route.</h1><p>Search real places, preview the road, then save an immutable KSU revision.</p></div>
-        <div className="button-row">
+        <div className="route-header-actions">
+          <p className={`preview-status ${previewReady ? 'ready' : ''}`} aria-live="polite">{previewMessage}</p>
+          <div className="button-row">
+          <button className="danger-button" disabled={busy !== null} onClick={clearRoute} type="button">Clear route</button>
           <button className="secondary-button" disabled={!preview || busy !== null} onClick={() => void runSave()} type="button">{busy === 'save' ? 'Saving…' : saved ? `Saved revision ${saved.revisionNumber}` : 'Save route'}</button>
-          <button className="primary-button" disabled={!definition || busy !== null} onClick={() => void runPreview()} type="button">{busy === 'preview' ? 'Calculating…' : preview ? 'Refresh preview' : 'Preview route'}</button>
+          <button className="primary-button" disabled={!previewReady || busy !== null} onClick={() => void runPreview()} type="button">{busy === 'preview' ? 'Calculating…' : preview ? 'Refresh preview' : 'Preview route'}</button>
+          </div>
         </div>
       </header>
       {error ? <div className="planner-notice error" role="alert">{error}</div> : null}
@@ -228,11 +293,25 @@ export function RoutePlannerPage() {
             <span><b>{preview ? rideTime(preview.durationSeconds) : '—'}</b> saddle</span>
             <span><b>{points.length}</b> points</span>
           </div>
+          <section className={`preview-readiness ${previewReady ? 'ready' : ''}`} aria-live="polite">
+            <p className="kicker">PREVIEW CHECK</p>
+            <strong>{previewReady ? 'Ready to preview the road.' : 'Finish these before Preview route.'}</strong>
+            <ul>
+              {points.map((point, index) => <li key={point.id} className={Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? 'complete' : ''}>{Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? '✓' : '○'} {pointLabel(point, index, points.length)} {Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && point.displayName.trim() ? 'ready' : 'needs a place'}</li>)}
+            </ul>
+          </section>
           <ol className="planner-stop-list">
             {points.map((point, index) => <li key={point.id}>
               <div className="stop-number">{String(index + 1).padStart(2, '0')}</div>
               <div className="stop-editor">
-                <label><span>{point.kind === 'origin' ? 'START' : point.kind === 'destination' ? 'FINISH' : point.kind.toUpperCase()}</span><input autoComplete="off" onChange={(event) => updatePointQuery(point.id, event.target.value)} onFocus={() => setSearchingPointId(point.id)} placeholder={point.kind === 'origin' ? 'Search starting place' : point.kind === 'destination' ? 'Search destination' : 'Search waypoint'} value={point.displayName} /></label>
+                <label><span>{pointLabel(point, index, points.length).toUpperCase()}</span><input autoComplete="off" onChange={(event) => updatePointQuery(point.id, event.target.value)} onFocus={() => setSearchingPointId(point.id)} placeholder={point.kind === 'origin' ? 'Search starting place' : point.kind === 'destination' ? 'Search destination' : point.kind === 'stop' ? 'Search a planned stop' : 'Search a road to ride through'} value={point.displayName} /></label>
+                {index > 0 && index < points.length - 1 ? <>
+                  <div className="waypoint-kind" aria-label={`Waypoint ${index} purpose`}>
+                    <button aria-pressed={point.kind === 'stop'} className={point.kind === 'stop' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'stop')} type="button"><b>Stop</b><small>Pull over</small></button>
+                    <button aria-pressed={point.kind === 'via'} className={point.kind === 'via' ? 'selected' : ''} onClick={() => setIntermediateKind(point.id, 'via')} type="button"><b>Pass-through</b><small>Keep rolling</small></button>
+                  </div>
+                  <small className="point-purpose">{pointPurpose(point)}</small>
+                </> : null}
                 {searchingPointId === point.id && suggestions.length ? <div className="place-results">{suggestions.map((suggestion) => <button key={suggestion.placeId} onClick={() => void choosePlace(point.id, suggestion)} type="button"><b>{suggestion.primaryText}</b>{suggestion.secondaryText ? <small>{suggestion.secondaryText}</small> : null}</button>)}</div> : null}
                 {Number.isFinite(point.latitude) ? <small className="resolved-place">Ready · {point.latitude!.toFixed(4)}, {point.longitude!.toFixed(4)}</small> : null}
               </div>
@@ -245,7 +324,15 @@ export function RoutePlannerPage() {
               </div>
             </li>)}
           </ol>
-          <button className="add-stop" disabled={points.length >= 27} onClick={addStop} type="button">+ Add waypoint</button>
+          <section className="point-picker" aria-label="Add a route point">
+            <p className="kicker">ADD TO THE RIDE</p>
+            <strong>What happens at the next point?</strong>
+            <div>
+              <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('stop')} type="button"><b>+ Add a stop</b><small>Fuel, food, a meetup, or any planned break.</small></button>
+              <button className="add-stop" disabled={points.length >= 27} onClick={() => addIntermediate('via')} type="button"><b>+ Add pass-through</b><small>Shape the route through a road without stopping.</small></button>
+            </div>
+            <small>Tip: clicking the map adds a pass-through. Use a stop when the group actually plans to pull over.</small>
+          </section>
           <fieldset className="route-options"><legend>Road preferences</legend>
             <label><input checked={avoidHighways} onChange={(event) => { markChanged(); setAvoidHighways(event.target.checked); }} type="checkbox" /> Avoid highways</label>
             <label><input checked={avoidTolls} onChange={(event) => { markChanged(); setAvoidTolls(event.target.checked); }} type="checkbox" /> Avoid tolls</label>
@@ -255,37 +342,51 @@ export function RoutePlannerPage() {
         <div className="map-canvas route-preview-canvas">
           <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.filter((point): point is DraftPoint & Required<Pick<DraftPoint, 'latitude' | 'longitude'>> => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))} routePoints={plottedPoints} showTraffic={showTraffic} />
           <div className="map-route-summary">
-            <p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
-            <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Click the map to add a stop. Drag any pin to refine it.'}</strong>
-            <label className="map-toggle"><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Traffic</label>
-            {preview ? <button className="secondary-button weather-button" disabled={busy !== null} onClick={() => void runWeather()} type="button">{busy === 'weather' ? 'Checking…' : weather ? 'Refresh weather' : 'Check weather'}</button> : null}
+            <div><p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
+              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Click the map to set a point. Every map click is a pass-through; drag any pin to refine it.'}</strong>
+              <small className="route-key"><i className="stop-key" /> Stop = pull over <i className="via-key" /> Pass-through = keep rolling</small>
+            </div>
+            <div className="route-tools" aria-label="Route tools">
+              <label className="map-toggle"><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Traffic <small>live road flow</small></label>
+              <button className="secondary-button weather-button" disabled={!preview || busy !== null} onClick={() => void runWeather()} title={preview ? 'Show weather at the start, midpoint, and finish' : 'Preview the route first so KSU can check conditions along the actual road'} type="button">{busy === 'weather' ? 'Checking…' : weather ? 'Refresh weather' : 'Weather along route'}</button>
+            </div>
+            <div className="map-point-picker" aria-label="Choose the type of next map pin">
+              <span>Next map pin</span>
+              <button aria-pressed={mapPointKind === 'via'} className={mapPointKind === 'via' ? 'selected' : ''} onClick={() => setMapPointKind('via')} type="button">Pass-through <small>shape the road</small></button>
+              <button aria-pressed={mapPointKind === 'stop'} className={mapPointKind === 'stop' ? 'selected' : ''} onClick={() => setMapPointKind('stop')} type="button">Stop <small>pull over</small></button>
+            </div>
             {handoff ? <a className="secondary-button" href={handoff.url} rel="noreferrer" target="_blank">Open in Google Maps</a> : null}
           </div>
         </div>
       </div>
       {weather ? <section className="route-weather" aria-labelledby="route-weather-title">
         <div className="route-weather-heading">
-          <div><p className="kicker">CONDITIONS ALONG THE RIDE</p><h2 id="route-weather-title">Know what the road is riding into.</h2></div>
-          <p>Current conditions · refresh before kickstands up</p>
+          <div><p className="kicker">CONDITIONS ALONG THE RIDE</p><h2 id="route-weather-title">A planning signal for this preview.</h2></div>
+          <p>{weather.cacheHit ? 'Cached result' : 'Freshly fetched'} · generated {formatTimestamp(weather.generatedAt)}</p>
         </div>
         <div className="weather-grid">
-          {weather.map((condition) => <article key={condition.label}>
-            <div className="weather-card-top">
-              <div><span>{condition.label}</span><h3>{condition.description}</h3></div>
-              {condition.iconUrl ? <img alt="" src={condition.iconUrl} /> : null}
-            </div>
+          {weather.conditions.map((condition) => <article key={condition.label}>
+            <div className="weather-card-top"><div><span>{condition.label}</span><h3>{condition.description}</h3></div>{condition.iconUrl ? <img alt="" src={condition.iconUrl} /> : null}</div>
             <strong>{condition.temperatureF === null ? '—' : `${Math.round(condition.temperatureF)}°F`}</strong>
             <dl>
               <div><dt>Feels</dt><dd>{condition.feelsLikeF === null ? '—' : `${Math.round(condition.feelsLikeF)}°`}</dd></div>
               <div><dt>Rain</dt><dd>{condition.precipitationChance === null ? '—' : `${Math.round(condition.precipitationChance)}%`}</dd></div>
               <div><dt>Wind</dt><dd>{condition.windMph === null ? '—' : `${Math.round(condition.windMph)} mph`}</dd></div>
               <div><dt>Gusts</dt><dd>{condition.windGustMph === null ? '—' : `${Math.round(condition.windGustMph)} mph`}</dd></div>
+              <div><dt>Visibility</dt><dd>{condition.visibilityMiles === null ? '—' : `${Math.round(condition.visibilityMiles)} mi`}</dd></div>
+              <div><dt>Observed</dt><dd>{formatTimestamp(condition.observedAt)}</dd></div>
             </dl>
+            {condition.forecastFor ? <small>Forecast for {formatTimestamp(condition.forecastFor)}</small> : null}
           </article>)}
         </div>
-        <small>Weather data by Google. Conditions can change quickly; verify alerts and use rider judgment.</small>
+        <small>Current conditions fetched at the generated time; available until {formatTimestamp(weather.expiresAt)}. Conditions can change quickly—verify alerts, road closures, and local conditions before you ride.</small>
       </section> : null}
       {busy === 'place' ? <div className="planner-busy" aria-live="polite">Resolving place…</div> : null}
     </section>
   );
+}
+
+function formatTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp) : 'an unknown time';
 }

@@ -34,22 +34,16 @@ export type RoutePreview = {
   dailyRemaining?: number;
 };
 export type SavedRevision = { routePlanId: string; routeRevisionId: string; revisionNumber: number };
+export type RouteWeatherLabel = 'Start' | 'Mid-route' | 'Finish';
+export type RouteWeatherPoint = { label: RouteWeatherLabel; latitude: number; longitude: number; etaOffsetSeconds: number };
 export type RouteWeatherCondition = {
-  label: string;
-  latitude: number;
-  longitude: number;
-  observedAt: string;
-  description: string;
-  iconUrl: string | null;
-  temperatureF: number | null;
-  feelsLikeF: number | null;
-  precipitationChance: number | null;
-  windMph: number | null;
-  windGustMph: number | null;
-  windDirection: string | null;
-  humidityPercent: number | null;
-  thunderstormChance: number | null;
-  uvIndex: number | null;
+  label: RouteWeatherLabel; observedAt: string; forecastFor: string | null; description: string; iconUrl: string | null;
+  temperatureF: number | null; feelsLikeF: number | null; precipitationChance: number | null; windMph: number | null;
+  windGustMph: number | null; visibilityMiles: number | null; source: 'google_weather';
+};
+export type RouteWeatherResponse = {
+  provider: 'google_weather'; conditions: RouteWeatherCondition[]; generatedAt: string; expiresAt: string;
+  cacheHit: boolean; freshness: 'current_conditions_fetched_at_generated_at';
 };
 
 function clientOrThrow() {
@@ -109,12 +103,29 @@ export async function previewRoute(definition: RouteDefinition, signal?: AbortSi
   return edgeRequest<RoutePreview>('route-preview', { operationId: crypto.randomUUID(), definition }, signal);
 }
 
-export async function getRouteWeather(points: { label: string; latitude: number; longitude: number }[], signal?: AbortSignal) {
-  const payload = await edgeRequest<{ conditions?: RouteWeatherCondition[] }>('route-weather', { points }, signal);
-  if (!Array.isArray(payload.conditions) || payload.conditions.length < 2) {
-    throw new Error('KSU could not read conditions along that route.');
-  }
-  return payload.conditions;
+export function isFreshRoutePreview(preview: RoutePreview, now = Date.now()) {
+  const expiresAt = Date.parse(preview.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+export function buildRouteWeatherRequest(preview: RoutePreview) {
+  const routePoints = decodePolyline(preview.encodedPolyline);
+  if (routePoints.length < 2 || !isFreshRoutePreview(preview)) throw new Error('Refresh the route preview before checking conditions.');
+  const durationSeconds = Math.max(0, Math.round(preview.durationSeconds));
+  return {
+    operationId: crypto.randomUUID(), routePreviewFingerprint: preview.providerRequestHash,
+    points: [
+      { label: 'Start' as const, ...routePoints[0], etaOffsetSeconds: 0 },
+      { label: 'Mid-route' as const, ...routePoints[closestMidpointIndex(routePoints)], etaOffsetSeconds: Math.round(durationSeconds / 2) },
+      { label: 'Finish' as const, ...routePoints.at(-1)!, etaOffsetSeconds: durationSeconds },
+    ] satisfies RouteWeatherPoint[],
+  };
+}
+
+export async function getRouteWeather(preview: RoutePreview, signal?: AbortSignal) {
+  const payload = await edgeRequest<RouteWeatherResponse>('route-weather', buildRouteWeatherRequest(preview), signal);
+  if (!isRouteWeatherResponse(payload)) throw new Error('KSU could not read conditions along that route.');
+  return payload;
 }
 
 export async function saveRoute(definition: RouteDefinition, preview: RoutePreview, routePlanId?: string) {
@@ -153,4 +164,31 @@ export function decodePolyline(encoded: string) {
     points.push({ latitude: latitude / 1e5, longitude: longitude / 1e5 });
   }
   return points;
+}
+
+function closestMidpointIndex(points: { latitude: number; longitude: number }[]) {
+  const distances = points.slice(1).map((point, index) => haversineMeters(points[index], point));
+  const halfway = distances.reduce((total, distance) => total + distance, 0) / 2;
+  let travelled = 0;
+  for (let index = 0; index < distances.length; index += 1) {
+    travelled += distances[index];
+    if (travelled >= halfway) return index + 1;
+  }
+  return Math.floor((points.length - 1) / 2);
+}
+
+function haversineMeters(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
+  const radians = Math.PI / 180;
+  const latitudeDelta = (b.latitude - a.latitude) * radians;
+  const longitudeDelta = (b.longitude - a.longitude) * radians;
+  const arc = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(a.latitude * radians) * Math.cos(b.latitude * radians) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(arc), Math.sqrt(1 - arc));
+}
+
+function isRouteWeatherResponse(value: RouteWeatherResponse) {
+  const labels: RouteWeatherLabel[] = ['Start', 'Mid-route', 'Finish'];
+  return value.provider === 'google_weather' && value.freshness === 'current_conditions_fetched_at_generated_at'
+    && typeof value.generatedAt === 'string' && typeof value.expiresAt === 'string' && Array.isArray(value.conditions)
+    && value.conditions.length === labels.length && value.conditions.every((condition, index) => condition?.label === labels[index]
+      && typeof condition.description === 'string' && condition.source === 'google_weather');
 }

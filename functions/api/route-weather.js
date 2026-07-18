@@ -7,18 +7,13 @@ export async function onRequest(context) {
   if (!authorization || !apiKey) return Response.json({ error: 'Sign in to check route conditions.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
   const body = await context.request.text();
   if (new TextEncoder().encode(body).byteLength > 4096) return Response.json({ error: 'Weather request is too large.' }, { status: 413, headers: { 'Cache-Control': 'no-store' } });
-  const upstream = await fetch(SUPABASE_URL + '/functions/v1/route-weather', {
+  const upstream = await fetch(`${SUPABASE_URL}/functions/v1/route-weather`, {
     method: 'POST',
-    headers: {
-      apikey: apiKey,
-      Authorization: authorization,
-      'Content-Type': 'application/json',
-      'x-ksu-platform': 'web',
-    },
+    headers: { apikey: apiKey, Authorization: authorization, 'Content-Type': 'application/json', 'x-ksu-platform': 'web' },
     body,
   });
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: { 'Cache-Control': 'private, max-age=300', 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' },
+    headers: { 'Cache-Control': 'private, no-store', 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' },
   });
 }
