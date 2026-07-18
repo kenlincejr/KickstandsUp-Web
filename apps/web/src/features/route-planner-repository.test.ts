@@ -48,13 +48,12 @@ describe('route planner contract', () => {
     expect(repository).toContain("edgeRequest<RouteWeatherResponse>('route-weather'");
     expect(repository).toContain('Refresh the route preview before checking conditions.');
     expect(planner).toContain('Check route conditions');
-    expect(planner).toContain('Stop here = pull over');
-    expect(planner).toContain('Ride through = hold the selected road');
     expect(planner).not.toContain('Next map pin');
+    expect(planner).not.toContain('map-route-summary');
+    expect(planner).toContain('Show live traffic');
     expect(planner).toContain('activePlacementPointId');
     expect(planner).toContain('placeExistingRoutePoint');
     expect(planner).toContain('Add a point between Start and Finish');
-    expect(planner).toContain('FUEL & CREW BREAKS');
     expect(planner).toContain("scrollIntoView({ behavior: 'smooth', block: 'start' })");
     expect(planner).toContain('beginWaypointDrag');
     expect(planner).toContain('routePointIdentity');
