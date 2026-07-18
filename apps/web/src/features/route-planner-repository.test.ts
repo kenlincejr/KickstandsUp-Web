@@ -52,8 +52,12 @@ describe('route planner contract', () => {
     expect(planner).toContain('Pass-through = keep rolling');
     expect(planner).toContain('Next map pin');
     expect(planner).toContain('Add a point between Start and Finish');
+    expect(planner).toContain('return `Waypoint ${index}`');
+    expect(planner).toContain('Drag the grip beside a waypoint');
     expect(planner).toContain('beginWaypointDrag');
     expect(planner).toContain('ordinal: index + 1');
+    expect(readFileSync(resolve(import.meta.dirname, 'google-route-map.tsx'), 'utf8')).toContain("return 'S'");
+    expect(readFileSync(resolve(import.meta.dirname, 'google-route-map.tsx'), 'utf8')).toContain("return 'F'");
     expect(planner).toContain('still needs a location');
     expect(planner).toContain("document.addEventListener('pointerdown'");
     expect(planner).toContain('Weather conditions are temporarily unavailable. Your route is still ready.');

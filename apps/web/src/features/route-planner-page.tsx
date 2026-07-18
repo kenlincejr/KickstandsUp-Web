@@ -44,11 +44,11 @@ function rideTime(seconds: number) {
 function pointLabel(point: DraftPoint, index: number, total: number) {
   if (index === 0) return 'Start';
   if (index === total - 1) return 'Finish';
-  return point.kind === 'stop' ? `Stop ${index}` : `Pass-through ${index}`;
+  return `Waypoint ${index}`;
 }
 
 function pointPurpose(point: DraftPoint) {
-  return point.kind === 'stop' ? 'Plan to stop here — fuel, food, meetup, or a break.' : 'Ride through here — this shapes the road without planning a stop.';
+  return point.kind === 'stop' ? 'The group plans to pull over here — fuel, food, meetup, or a break.' : 'The group keeps rolling here — this point simply keeps the ride on the road you picked.';
 }
 
 export function RoutePlannerPage() {
@@ -342,7 +342,7 @@ export function RoutePlannerPage() {
               </div>
               <div className="stop-actions">
                 {index > 0 && index < points.length - 1 ? <>
-                   <button aria-label={`Drag ${pointLabel(point, index, points.length)} to reorder`} className="drag-waypoint" draggable onDragEnd={() => setDraggingPointId(null)} onDragStart={(event) => beginWaypointDrag(event, point.id)} type="button">⠿</button>
+                   <button aria-label={`Drag ${pointLabel(point, index, points.length)} to reorder`} className="drag-waypoint" draggable onDragEnd={() => setDraggingPointId(null)} onDragStart={(event) => beginWaypointDrag(event, point.id)} type="button"><span aria-hidden="true">⠿</span><small>Drag</small></button>
                    <button aria-label="Move waypoint up" disabled={index === 1} onClick={() => movePoint(index, -1)} type="button">↑</button>
                   <button aria-label="Move waypoint down" disabled={index === points.length - 2} onClick={() => movePoint(index, 1)} type="button">↓</button>
                   <button aria-label="Remove waypoint" onClick={() => { markChanged(); setPoints((current) => current.filter((item) => item.id !== point.id)); }} type="button">×</button>
@@ -363,7 +363,7 @@ export function RoutePlannerPage() {
           <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={addMapPoint} onPointMoved={moveMapPoint} points={points.flatMap((point, index) => typeof point.latitude === 'number' && typeof point.longitude === 'number' ? [{ ...point, latitude: point.latitude, longitude: point.longitude, ordinal: index + 1 }] : [])} routePoints={plottedPoints} showTraffic={showTraffic} />
           <div className="map-route-summary">
             <div><p className="kicker">{preview ? 'ROAD SHAPE PREVIEW' : 'MULTI-POINT ROUTE BUILDER'}</p>
-              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Set Start and Finish, then add the points that make this your ride. Drag a pin or its grip to change the order.'}</strong>
+              <strong>{preview ? `${miles(preview.distanceMeters)} · ${rideTime(preview.durationSeconds)}` : 'Set Start and Finish, then add the points that make this your ride. Drag the grip beside a waypoint and the map updates to match.'}</strong>
               <small className="route-key"><i className="stop-key" /> Stop = pull over <i className="via-key" /> Pass-through = keep rolling</small>
             </div>
             <div className="route-tools" aria-label="Route tools">
