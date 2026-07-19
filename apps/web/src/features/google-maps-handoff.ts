@@ -36,9 +36,18 @@ export function buildGoogleMapsHandoffs(points: RouteWaypoint[], intermediateLim
   const segments: RouteWaypoint[][] = [];
   let start = 0;
   while (start < points.length - 1) {
-    const end = Math.min(points.length, start + maximumLocations);
-    segments.push(points.slice(start, end));
-    start = end - 1;
+    const windowEnd = Math.min(points.length, start + maximumLocations);
+    // Prefer ending a leg at a real stop so riders are never navigated to a
+    // pass-through shaping point; fall back to the count boundary when the
+    // window holds no stop. Mirrors the mobile app's segmentation.
+    let boundary = windowEnd - 1;
+    if (windowEnd < points.length && points[boundary].kind === 'via') {
+      for (let index = boundary - 1; index > start; index -= 1) {
+        if (points[index].kind !== 'via') { boundary = index; break; }
+      }
+    }
+    segments.push(points.slice(start, boundary + 1));
+    start = boundary;
   }
   return segments.map((segment, index): GoogleMapsHandoff => {
     const shapingIndex = segment.findIndex((point, pointIndex) => pointIndex > 0 && pointIndex < segment.length - 1 && point.kind === 'via');
