@@ -400,7 +400,7 @@ export function RoutePlannerPage() {
                {points.map((point, index) => {
                  const identity = routePointIdentity(points, index);
                  const complete = isRoutePointComplete(point);
-                 return <li key={point.id} className={complete ? 'complete' : ''}>{complete ? '✓' : '○'} {identity.token} · {complete ? 'Ready' : 'Needs a location'} <button onClick={() => complete ? selectPoint(point.id) : (selectPoint(point.id), setActivePlacementPointId(point.id))} type="button">{complete ? `Select ${identity.token}` : `Place ${identity.token} on map`}</button></li>;
+                 return <li key={point.id} className={complete ? 'complete' : ''}><span className={`stamp-chip ${complete ? 'moss' : 'rust'}`}>{complete ? 'Ready' : 'Needs a location'}</span> {identity.token} · {identity.purpose} <button onClick={() => complete ? selectPoint(point.id) : (selectPoint(point.id), setActivePlacementPointId(point.id))} type="button">{complete ? `Select ${identity.token}` : `Place ${identity.token} on map`}</button></li>;
                })}
             </ul>
           </section>

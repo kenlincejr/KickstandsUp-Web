@@ -1,3 +1,5 @@
+@import "@fontsource/bebas-neue";
+
 :root {
   color: #f7f0df;
   background: #0c0f09;
@@ -65,6 +67,42 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .rail-account { margin-top: auto; display: grid; gap: 8px; overflow-wrap: anywhere; color: var(--muted); font-size: .78rem; }
 .text-button { width: fit-content; padding: 0; color: var(--orange); border: 0; background: transparent; cursor: pointer; }
 .workspace { min-width: 0; }
+/* ---- Field Guide day-mode (route planner only — scoped under .planner-page, matches mobile's DayTheme tokens exactly; see src/constants/day-theme.ts) ---- */
+.planner-page {
+  --fg-paper: #F1ECD9;
+  --fg-paper-deep: #E7DFC1;
+  --fg-card: #FBF8EF;
+  --fg-ink: #262E1E;
+  --fg-ink-soft: #5B6350;
+  --fg-line: #D2C6A0;
+  --fg-brass: #8C6A22;
+  --fg-rust: #9C4315;
+  --fg-moss: #3F5A34;
+  --fg-olive: #1F2715;
+  --fg-olive-brass-line: rgba(198,161,79,.55);
+  background: var(--fg-paper);
+  color: var(--fg-ink);
+  padding-bottom: 60px;
+}
+.planner-page .kicker { color: var(--fg-brass); }
+.planner-page h1, .planner-page h2 { color: var(--fg-ink); font-family: "Bebas Neue", Inter, sans-serif; letter-spacing: 0; }
+.planner-page .tool-header p { color: var(--fg-ink-soft); }
+.planner-page .primary-button { background: var(--fg-rust); color: var(--fg-card); }
+.planner-page .secondary-button { background: var(--fg-card); color: var(--fg-ink); border-color: var(--fg-line); }
+.planner-page .danger-button { border-color: var(--fg-rust); color: var(--fg-rust); }
+.planner-page .text-button { color: var(--fg-brass); }
+.planner-page .preview-status { color: var(--fg-ink) !important; border-left-color: var(--fg-brass); background: var(--fg-paper-deep); }
+.planner-page .preview-status.ready { border-left-color: var(--fg-moss); background: rgba(63,90,52,.12); }
+.planner-page .planner-notice.error { border-color: var(--fg-rust); background: rgba(156,67,21,.10); }
+/* Stamp chip / plaque / ribbon-rule — the same three day-kit primitives used on mobile (src/components/day/day-kit.tsx) */
+.planner-page .stamp-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--fg-line); background: var(--fg-paper-deep); color: var(--fg-ink); font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.planner-page .stamp-chip.moss { border-color: var(--fg-moss); background: var(--fg-moss); color: #fff; }
+.planner-page .stamp-chip.brass { border-color: var(--fg-brass); background: transparent; color: var(--fg-brass); }
+.planner-page .stamp-chip.rust { border-color: var(--fg-rust); background: var(--fg-rust); color: #fff; }
+.planner-page .plaque { padding: 12px 14px; border-radius: 9px; border: 1px solid var(--fg-olive-brass-line); background: var(--fg-olive); color: var(--fg-card); }
+.planner-page .ribbon-rule { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
+.planner-page .ribbon-rule span:first-child { color: var(--fg-brass); font-size: .72rem; font-weight: 800; letter-spacing: .12em; }
+.planner-page .ribbon-rule span:last-child { flex: 1; height: 1px; background: var(--fg-brass); opacity: .5; }
 .tool-page { min-height: 100vh; padding: 42px; }
 .locked-feature { display: grid; align-content: center; max-width: 760px; }
 .locked-feature h1 { margin: 14px 0; font-size: clamp(3rem, 7vw, 6rem); line-height: .92; letter-spacing: -.06em; }
@@ -118,6 +156,15 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
   .garage-bike .inline-actions { width: 100%; }
   .checkbox-group { display: grid; }
 }
+.planner-page .planner-grid { border-color: var(--fg-line); }
+.planner-page .planner-panel { background: var(--fg-card); }
+.planner-page .metric-row { border-bottom-color: var(--fg-line); color: var(--fg-ink-soft); }
+.planner-page .metric-row b { color: var(--fg-ink); }
+.planner-page .preview-readiness { border-color: var(--fg-brass); background: var(--fg-paper-deep); }
+.planner-page .preview-readiness.ready { border-color: var(--fg-moss); background: rgba(63,90,52,.10); }
+.planner-page .preview-readiness ul { color: var(--fg-ink-soft); }
+.planner-page .preview-readiness li.complete { color: var(--fg-moss); }
+.planner-page .preview-readiness li button { color: var(--fg-brass); }
 .planner-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr); align-items: start; margin-top: 34px; border: 1px solid var(--line); border-radius: 14px; }
 .planner-panel { padding: 20px; background: #141910; }
 .metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .72rem; }
@@ -142,10 +189,43 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .point-picker .add-stop:hover { border-color: var(--orange); background: rgba(245,166,35,.08); }
 .point-picker .add-stop small, .point-picker > small { color: var(--muted); font-size: .7rem; line-height: 1.35; }
 .point-picker > small { display: block; margin-top: 10px; }
+.planner-page .map-canvas { background-color: var(--fg-paper-deep); background-image: linear-gradient(rgba(140,106,34,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(140,106,34,.08) 1px, transparent 1px); }
 .map-canvas { display: grid; place-items: center; padding: 48px; background-color: #22281c; background-image: linear-gradient(rgba(184,215,120,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(184,215,120,.05) 1px, transparent 1px); background-size: 32px 32px; }
 .map-placeholder { max-width: 520px; padding: 34px; border: 1px solid #596448; background: rgba(17, 22, 13, .93); border-radius: 14px; }
 .map-placeholder h2 { font-size: 2rem; }
 .map-placeholder p:last-child { color: var(--muted); line-height: 1.6; }
+.planner-page .planner-notice { border-color: var(--fg-line); background: var(--fg-card); }
+.planner-page .planner-notice.success { border-color: var(--fg-moss); color: var(--fg-moss); }
+.planner-page .planner-guide { border-color: var(--fg-brass); background: var(--fg-paper-deep); }
+.planner-page .planner-guide li > b { background: var(--fg-brass); color: var(--fg-card); }
+.planner-page .planner-guide li small { color: var(--fg-ink-soft); }
+.planner-page .planner-help-menu { color: var(--fg-ink-soft); }
+.planner-page .planner-help-menu summary { color: var(--fg-ink); }
+.planner-page .planner-title { color: var(--fg-ink-soft); }
+.planner-page .planner-title input, .planner-page .stop-editor input { border-color: var(--fg-line); background: var(--fg-card); color: var(--fg-ink); }
+.planner-page .planner-title input:focus, .planner-page .stop-editor input:focus { border-color: var(--fg-brass); box-shadow: 0 0 0 3px rgba(140,106,34,.14); }
+.planner-page .planner-stop-list > .waypoint-row { border-bottom-color: var(--fg-line); }
+.planner-page .planner-stop-list > .waypoint-row.selected { outline-color: var(--fg-brass); background: rgba(140,106,34,.08); }
+.planner-page .planner-stop-list > .waypoint-row:focus-within { outline-color: var(--fg-brass); }
+.planner-page .waypoint-insert { border-bottom-color: var(--fg-line); }
+.planner-page .waypoint-insert small { color: var(--fg-ink-soft); }
+.planner-page .insert-actions button { border-color: var(--fg-brass); color: var(--fg-ink); }
+.planner-page .insert-actions button:hover { background: rgba(140,106,34,.08); }
+.planner-page .stop-number { background: var(--fg-rust); color: var(--fg-card); }
+.planner-page .stop-editor label > span { color: var(--fg-brass); }
+.planner-page .resolved-place { color: var(--fg-moss); }
+.planner-page .point-purpose { color: var(--fg-ink-soft); }
+.planner-page .point-recovery button { border-color: var(--fg-brass); background: var(--fg-card); color: var(--fg-ink); }
+.planner-page .waypoint-kind button { border-color: var(--fg-line); background: var(--fg-card); color: var(--fg-ink-soft); }
+.planner-page .waypoint-kind button.selected { border-color: var(--fg-brass); background: rgba(140,106,34,.13); color: var(--fg-ink); }
+.planner-page .place-results { border-color: var(--fg-brass); background: var(--fg-card); box-shadow: 0 18px 38px rgba(38,46,30,.18); }
+.planner-page .place-results button { border-bottom-color: var(--fg-line); color: var(--fg-ink); }
+.planner-page .place-results button:hover { background: var(--fg-paper-deep); }
+.planner-page .place-results small { color: var(--fg-ink-soft); }
+.planner-page .stop-actions button { border-color: var(--fg-line); color: var(--fg-ink-soft); }
+.planner-page .stop-actions .drag-waypoint { border-color: var(--fg-brass); color: var(--fg-ink); }
+.planner-page .route-options { border-color: var(--fg-line); color: var(--fg-ink-soft); }
+.planner-page .route-options legend { color: var(--fg-ink); }
 .planner-notice { margin-top: 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 9px; background: #141910; }
 .planner-notice.success { border-color: #647d42; color: var(--green-bright); }
 .planner-notice a { text-decoration: underline; }
@@ -203,6 +283,32 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .map-point-picker button.selected { border-color: var(--orange); background: rgba(245,166,35,.13); color: var(--ink); }
 .map-point-picker small { color: inherit; font-size: .65rem; font-weight: 500; }
 .route-support { grid-column: 1 / -1; display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }.route-support .kicker { margin: 0; }.route-support strong { font-size: .76rem; }.route-support small { color: var(--muted); font-size: .68rem; line-height: 1.35; }
+.planner-page .route-weather { border-color: var(--fg-brass); background: var(--fg-card); }
+.planner-page .route-weather-heading > p, .planner-page .route-weather > small { color: var(--fg-ink-soft); }
+.planner-page .weather-grid article { border-color: var(--fg-line); background: var(--fg-paper-deep); }
+.planner-page .weather-card-top span { color: var(--fg-brass); }
+.planner-page .weather-grid dl div { border-top-color: var(--fg-line); }
+.planner-page .weather-grid dt { color: var(--fg-ink-soft); }
+.planner-page .route-brief-signals article { border-color: var(--fg-line); background: var(--fg-paper-deep); }
+.planner-page .route-brief-signals article.watch { border-color: var(--fg-brass); }
+.planner-page .route-brief-signals article.caution { border-color: var(--fg-rust); background: rgba(156,67,21,.08); }
+.planner-page .route-brief-signals span { color: var(--fg-ink-soft); }
+.planner-page .smart-stops { border-color: var(--fg-line); background: var(--fg-card); }
+.planner-page .smart-stops p, .planner-page .smart-stops small { color: var(--fg-ink-soft); }
+.planner-page .smart-stop-inputs label { color: var(--fg-ink-soft); }
+.planner-page .smart-stop-inputs input { border-color: var(--fg-line); background: var(--fg-paper-deep); color: var(--fg-ink); }
+.planner-page .smart-stop-list li { border-left-color: var(--fg-brass); background: var(--fg-paper-deep); }
+.planner-page .smart-stop-list span { color: var(--fg-ink-soft); }
+.planner-page .planner-busy { background: var(--fg-rust); color: var(--fg-card); }
+.planner-page .planner-action-rail { border-color: var(--fg-brass); background: var(--fg-card); }
+.planner-page .planner-action-rail .route-freshness { color: var(--fg-ink-soft); }
+.planner-page .planner-action-rail .route-freshness.fresh { color: var(--fg-moss); }
+.planner-page .planner-action-rail .route-freshness.stale { color: var(--fg-rust); }
+.planner-page .planner-action-grid article { border-color: var(--fg-line); background: var(--fg-paper-deep); }
+.planner-page .planner-action-grid article.primary { border-color: var(--fg-brass); box-shadow: inset 0 0 0 1px rgba(140,106,34,.18); }
+.planner-page .planner-action-grid article > span { color: var(--fg-brass); }
+.planner-page .planner-action-grid p { color: var(--fg-ink-soft); }
+.planner-page .handoff-diagnostic small, .planner-page .planner-sharing-state small { color: var(--fg-ink-soft); }
 .route-weather { margin-top: 20px; padding: 24px; border: 1px solid #596448; border-radius: 14px; background: linear-gradient(145deg, rgba(25,32,20,.98), rgba(14,18,12,.98)); }
 .route-weather-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 20px; }
 .route-weather-heading .kicker { margin: 0 0 6px; }
