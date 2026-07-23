@@ -35,21 +35,31 @@ describe('Cloudflare delivery contract', () => {
     }
   });
 
-  it('provides public sign-in and sign-up paths with the same providers as the app', () => {
-    const home = repoFile('apps/web/src/features/home-page.tsx');
+  it('keeps sign-in and sign-up routed and provider-complete even though the v2 landing page omits login', () => {
+    // The homepage is intentionally login-free for now (marketing-only launch page —
+    // see docs/decisions.md). /signin and /signup still exist and still carry the
+    // same Google/Apple providers; only the home page's own links were dropped.
     const signIn = repoFile('apps/web/src/features/auth/sign-in-page.tsx');
     const auth = repoFile('apps/web/src/features/auth/auth-context.tsx');
     const routes = repoFile('apps/web/src/app/app.tsx');
 
-    expect(home).toContain('to="/signin"');
-    expect(home).toContain('to="/signup"');
-    expect(home).toContain('Create your KSU account');
     expect(signIn).toContain('Continue with Google');
     expect(signIn).toContain('Continue with Apple');
     expect(auth).toContain("provider: 'google' | 'apple'");
     expect(routes).toContain('path="/login"');
     expect(routes).toContain('to="/signin"');
     expect(routes).toContain('path="/signup"');
+  });
+
+  it('ships the v2 marketing landing page with the KSU logo, store badges, and premium section', () => {
+    const home = repoFile('apps/web/src/features/home-page.tsx');
+
+    expect(home).toContain('/KSU_Header_Mobile.jpg');
+    expect(home).toContain('App Store');
+    expect(home).toContain('Google Play');
+    expect(home).toContain('KSU Premium');
+    expect(home).not.toContain('to="/signin"');
+    expect(home).not.toContain('to="/signup"');
   });
 
   it('ships legal pages, token fallbacks, and both app-association documents', () => {
