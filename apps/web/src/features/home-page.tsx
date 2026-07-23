@@ -146,7 +146,7 @@ export function HomePage() {
       <section className="home-band">
         <div className="home-band-inner">
           <p className="home-kicker on-brick">Why KSU</p>
-          <p className="home-band-big">Love riding alone? Same. Rounding people up is the part that sucks.</p>
+          <p className="home-band-big">Love riding alone? Same. Rounding people up is the hard part.</p>
           <p className="home-band-small">Group texts that die. Plans that fall through. Nobody who rides your pace. GPS apps already nailed the map — KSU fixes the actual headache: finding the right riders and getting everyone rolling.</p>
         </div>
       </section>
