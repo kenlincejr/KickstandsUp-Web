@@ -55,6 +55,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const knownTiers = new Set<string>(['participant', 'basic', 'premium', 'unavailable'] satisfies CapabilitySnapshot['accountTier'][]);
+
+/**
+ * Degrade-low with a signal (mobile's posture, ported). An unrecognized tier
+ * renders the FREE experience — never a parse failure. The live proving case:
+ * access contract v3 began emitting 'basic', this parser rejected the whole
+ * snapshot as null, and every Basic subscriber's entire /app surface failed
+ * closed to the unavailable screen. A tier this bundle cannot read means the
+ * server is newer, not that the rider is nobody.
+ */
+function toKnownTier(value: string): CapabilitySnapshot['accountTier'] {
+  if (knownTiers.has(value)) return value as CapabilitySnapshot['accountTier'];
+  console.warn(`[capabilities] unrecognized account_tier ${JSON.stringify(value)}; treating as participant`);
+  return 'participant';
+}
+
 function filteredArray<T extends string>(value: unknown, allowed: Set<string>): T[] {
   return Array.isArray(value) ? value.filter((item): item is T => typeof item === 'string' && allowed.has(item)) : [];
 }
@@ -117,7 +133,7 @@ export function parseCapabilitySnapshot(value: unknown): CapabilitySnapshot | nu
     || typeof value.projection_revision !== 'number'
     || !(['ready', 'stale', 'unavailable'] satisfies ProjectionState[]).includes(projectionState as ProjectionState)
     || !(['shadow', 'internal', 'enforcing', 'disabled'] satisfies RolloutState[]).includes(rolloutState as RolloutState)
-    || !(['participant', 'premium', 'unavailable'] as const).includes(accountTier as CapabilitySnapshot['accountTier'])
+    || typeof accountTier !== 'string'
     || typeof checkedAt !== 'string'
     || Number.isNaN(Date.parse(checkedAt))
     || (expiresAt !== null && typeof expiresAt !== 'string')
@@ -134,7 +150,7 @@ export function parseCapabilitySnapshot(value: unknown): CapabilitySnapshot | nu
     projectionRevision: value.projection_revision,
     projectionState: projectionState as ProjectionState,
     rolloutState: rolloutState as RolloutState,
-    accountTier: accountTier as CapabilitySnapshot['accountTier'],
+    accountTier: toKnownTier(accountTier),
     accountCapabilities: filteredArray<AccountCapability>(value.account_capabilities, accountCapabilitySet),
     scopedAccountCapabilities: parseScopedAccountCapabilities(value.scoped_account_capabilities),
     clubCapabilities: parseClubScopes(value.club_capabilities),

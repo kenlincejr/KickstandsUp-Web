@@ -3,9 +3,11 @@ export const accountCapabilities = [
   'rides.manage_owned_existing', 'routes.read_authorized', 'routes.handoff',
   'rides.discover', 'rides.create', 'rides.chat', 'friends.read',
   'friends.connect', 'friends.status', 'meetups.create', 'meetups.respond',
-  'routes.plan', 'routes.save', 'routes.export', 'places.search',
-  'conditions.route_brief', 'ai.route_assist', 'assistance.request',
-  'assistance.offer', 'assistance.read_authorized', 'assistance.preferences',
+  'routes.plan', 'routes.plan.web', 'routes.plan.map_surface', 'routes.save',
+  'routes.export', 'routes.elevation', 'places.search',
+  'conditions.route_brief', 'conditions.route_forecast', 'ai.route_assist',
+  'assistance.request', 'assistance.offer', 'assistance.read_authorized',
+  'assistance.preferences',
 ] as const;
 
 export const clubCapabilities = [
@@ -18,7 +20,7 @@ export type AccountCapability = (typeof accountCapabilities)[number];
 export type ClubCapability = (typeof clubCapabilities)[number];
 export type ProjectionState = 'ready' | 'stale' | 'unavailable';
 export type RolloutState = 'shadow' | 'internal' | 'enforcing' | 'disabled';
-export type AccountTier = 'participant' | 'premium' | 'unavailable';
+export type AccountTier = 'participant' | 'basic' | 'premium' | 'unavailable';
 export type CapabilitySource = 'participant' | 'store_premium' | 'ksu_grant' | 'club_sponsorship' | 'club_role' | 'named_seat';
 
 export type ClubCapabilityScope = {
