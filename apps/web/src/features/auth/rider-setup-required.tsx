@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import { useAuth } from './auth-context';
+import { GetTheAppPanel } from './get-the-app-panel';
 
 /**
  * Shown when someone signs in on the website but has never completed rider
@@ -8,7 +8,8 @@ import { useAuth } from './auth-context';
  * they just used is the one that will work.
  *
  * Deliberately NOT a redirect to /signin — that would loop, because they ARE
- * signed in. It's a terminal screen with two ways out: get the app, or sign out.
+ * signed in. It's a terminal screen with one way forward (get the app) and
+ * one way out (sign out).
  */
 export function RiderSetupRequired({ email }: { email?: string | null }) {
   const { signOut } = useAuth();
@@ -26,13 +27,13 @@ export function RiderSetupRequired({ email }: { email?: string | null }) {
           rides, bigger screen.
         </p>
         <div className="auth-actions">
-          <Link className="primary-button" to="/the-app">Get the KSU app</Link>
           <button className="secondary-button" type="button" onClick={() => void signOut()}>Sign out</button>
         </div>
-        <p className="auth-provider-note">
-          Already set up in the app? Sign out and back in — the website reads your rider profile on sign-in.
-        </p>
       </section>
+      <GetTheAppPanel
+        heading="Get the KSU app"
+        body={`Download KSU and sign in there with${email ? ` the same login (${email})` : ' this same login'} to finish setting up. Then come back here — the website reads your rider profile the moment it exists.`}
+      />
     </main>
   );
 }

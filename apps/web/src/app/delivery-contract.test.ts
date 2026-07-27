@@ -70,7 +70,6 @@ describe('Cloudflare delivery contract', () => {
     }
     // It must say where accounts ARE made, and point at the app.
     expect(signInCopy).toContain('accounts are created in the app');
-    expect(signIn).toContain('to="/the-app"');
 
     // Signed in is not the same as "is a rider": /app is gated on the profile the
     // app's onboarding writes, and the terminal screen sends them to the app.
@@ -80,8 +79,20 @@ describe('Cloudflare delivery contract', () => {
     // A failed probe must not be treated as a missing account.
     expect(guard).toContain("account.status === 'unavailable'");
     expect(setup).toContain('created in the KSU app');
-    expect(setup).toContain('to="/the-app"');
     expect(setup).not.toContain('to="/signup"');
+
+    // Both screens use the SAME hard-to-miss store-badge panel, not a buried
+    // text link — that's the whole point of the 2026-07-27 follow-up ("make
+    // the no-account path more obvious, point them at the store links").
+    const panel = repoFile('apps/web/src/features/auth/get-the-app-panel.tsx');
+    expect(signIn).toContain('<GetTheAppPanel');
+    expect(setup).toContain('<GetTheAppPanel');
+    expect(panel).toContain('to="/the-app"');
+    expect(panel).toContain('AppleGlyph');
+    expect(panel).toContain('GooglePlayGlyph');
+    // Real store badges, not the marketing site's — that component depends on
+    // .ksu-site's LaunchNoteContext, which these dark auth pages don't provide.
+    expect(panel).not.toContain("from '../site/site-chrome'");
   });
 
   it('ships the editorial marketing site: routed nav pages, shared chrome, and no login links', () => {

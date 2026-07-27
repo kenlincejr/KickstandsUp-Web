@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './auth-context';
 import { safeReturnTo } from './auth-intent';
+import { GetTheAppPanel } from './get-the-app-panel';
 
 /**
  * EXISTING RIDERS ONLY. Owner policy 2026-07-27: rider accounts are created in
@@ -50,13 +51,13 @@ export function SignInPage() {
           </button>
         </div>
         <p className="auth-provider-note">Use the same provider as the app. Google and Apple sign-ins are separate KSU accounts today.</p>
-        <p className="auth-provider-note">
-          <b>New to KSU?</b> Rider accounts are created in the app. <Link to="/the-app">Download KSU</Link>, set up your
-          rider profile there, then sign in here with that same login.
-        </p>
         {!configured ? <p className="notice">Web sign-in is scaffolded but intentionally disabled until the approved Supabase web environment and OAuth redirect are configured.</p> : null}
         {error ? <p className="error" role="alert">{error}</p> : null}
       </section>
+      <GetTheAppPanel
+        heading="New to KSU?"
+        body="Rider accounts are created in the app, not here. Download KSU, sign in, and set up your rider profile — then come back and sign in on this same screen with that same login to unlock Premium."
+      />
     </main>
   );
 }

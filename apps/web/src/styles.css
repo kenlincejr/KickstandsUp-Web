@@ -61,6 +61,23 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .auth-card > p { color: var(--muted); line-height: 1.6; }
 .auth-actions { display: grid; gap: 12px; margin-top: 22px; }
 .auth-actions .primary-button, .auth-actions .secondary-button { width: 100%; }
+/* The "don't have an account" panel: a second, visually distinct card under
+   auth-card so it reads as a real next step, not a footnote. Accent-bordered
+   on purpose — this is the one message a first-time rider must not miss. */
+.auth-get-app { width: min(560px, 100%); margin-top: 18px; padding: 26px 30px 28px; border: 1px solid rgba(245, 166, 35, .35); border-radius: 16px; background: rgba(245, 166, 35, .06); }
+.auth-get-app > p:not(.kicker) { margin: 10px 0 0; color: var(--muted); line-height: 1.55; }
+.auth-store-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.auth-store-badge { display: inline-flex; align-items: center; gap: 11px; min-height: 52px; padding: 0 18px 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #171d10; color: var(--ink); transition: border-color .18s ease, transform .18s ease; }
+.auth-store-badge:hover { border-color: var(--orange); transform: translateY(-1px); }
+.auth-store-badge:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+.auth-store-badge-glyph { width: 24px; height: 24px; flex: none; }
+.auth-store-badge-txt { display: flex; flex-direction: column; line-height: 1.05; }
+.auth-store-badge-txt small { font-size: 10px; color: var(--muted); }
+.auth-store-badge-txt b { font-size: 16px; font-weight: 800; }
+@media (max-width: 600px) {
+  .auth-get-app { padding: 22px 20px 24px; }
+  .auth-store-row { flex-direction: column; }
+}
 .auth-provider-note { font-size: .86rem; }
 .notice { padding: 12px; border-left: 3px solid var(--orange); background: rgba(245, 166, 35, .08); }
 .error { color: #ff9a8e !important; }
