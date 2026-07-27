@@ -308,41 +308,48 @@ export type TripRideMetaResult =
   | { state: 'loaded'; meta: TripRideMeta }
   | { state: 'unreadable'; reason: string };
 
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
 /**
- * The parent ride row: title, status, and the staging pin the origin chain
- * falls back to.
+ * The parent ride row: title, status, created_by, and the staging pin the
+ * origin chain falls back to.
  *
- * `staging_latitude`/`staging_longitude` are NOT columns — `public.rides`
- * stores the pin as `staging_point extensions.geography(Point,4326)`
- * (20260712000000_initial_ksu_schema.sql:78), and every `staging_latitude` in
- * the migration tree is an RPC *parameter* fed to st_makepoint. Selecting them
- * made PostgREST fail the whole row with 42703 on every trip for every user,
- * which the old `return null` swallowed into a false "you are not the
- * coordinator" lockout. Do not add them back.
+ * RPC-first, and it has to be. This was a direct
+ * `.from('rides').select(…,staging_latitude,staging_longitude,…)`, but those
+ * are NOT columns — `public.rides` stores the pin as
+ * `staging_point extensions.geography(Point,4326)`
+ * (20260712000000_initial_ksu_schema.sql:78) and every `staging_latitude` in
+ * the migration tree is an RPC *parameter* fed to st_makepoint. PostgREST
+ * failed the whole row with 42703 for every caller on every trip; the old
+ * `return null` swallowed it; the editor then told the trip's own creator that
+ * only its creator could edit it. A geography column has no useful PostgREST
+ * projection, so `get_trip_ride_meta` (20260730170000) does the st_x/st_y
+ * projection server-side, behind the same authorization as get_ride_trip.
  *
- * Coordinates therefore stay null until a SECURITY DEFINER RPC projects them
- * through st_x/st_y; Autopilot needs them for day 1's origin and stays blocked
- * on that RPC. Everything else here — the coordinator check, the title, the
- * editable gate — works off this select alone.
+ * Never reach for the table select again — it cannot return the coordinates,
+ * and Autopilot's day 1 has no origin without them.
  */
 export async function getTripRideMeta(rideId: string): Promise<TripRideMetaResult> {
-  const { data, error } = await clientOrThrow()
-    .from('rides')
-    .select('id,title,status,staging_display_name,created_by')
-    .eq('id', rideId)
-    .maybeSingle();
+  const { data, error } = await clientOrThrow().rpc('get_trip_ride_meta', { target_ride_id: rideId });
+  // Every failure is reported as unreadable, never as an absent coordinator:
+  // 28000 (no session), 42501 (not on this roster) and a missing function all
+  // mean "we could not verify", which is not the same claim as "you are not
+  // the owner" and must not be rendered as one.
   if (error) return { state: 'unreadable', reason: error.message };
-  if (!data || typeof data.id !== 'string') return { state: 'unreadable', reason: 'Trip not found.' };
+  if (!data || typeof data !== 'object') return { state: 'unreadable', reason: 'This ride isn’t a multi-day trip.' };
+  const row = data as Record<string, unknown>;
+  if (typeof row.rideId !== 'string') return { state: 'unreadable', reason: 'Trip not found.' };
   return {
     state: 'loaded',
     meta: {
-      id: data.id,
-      title: typeof data.title === 'string' && data.title.trim() ? data.title : 'KSU trip',
-      status: typeof data.status === 'string' ? data.status : 'scheduled',
-      stagingDisplayName: typeof data.staging_display_name === 'string' ? data.staging_display_name : null,
-      stagingLatitude: null,
-      stagingLongitude: null,
-      createdBy: typeof data.created_by === 'string' ? data.created_by : null,
+      id: row.rideId,
+      title: typeof row.title === 'string' && row.title.trim() ? row.title : 'KSU trip',
+      status: typeof row.status === 'string' ? row.status : 'scheduled',
+      stagingDisplayName: typeof row.stagingDisplayName === 'string' ? row.stagingDisplayName : null,
+      stagingLatitude: finiteOrNull(row.stagingLatitude),
+      stagingLongitude: finiteOrNull(row.stagingLongitude),
+      createdBy: typeof row.createdBy === 'string' ? row.createdBy : null,
     },
   };
 }

@@ -20,32 +20,32 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./trip-repository.ts', import.meta.url), 'utf8');
 
-/** Columns that genuinely exist on public.rides and that this read needs. */
-const ALLOWED = ['id', 'title', 'status', 'staging_display_name', 'created_by'];
-
-function selectListFor(fnName: string): string {
+function bodyOf(fnName: string): string {
   const start = source.indexOf(`export async function ${fnName}`);
   expect(start, `${fnName} not found — was it renamed?`).toBeGreaterThan(-1);
-  const body = source.slice(start, start + 1200);
-  const match = body.match(/\.select\('([^']+)'\)/);
-  expect(match, `${fnName} has no .select('…') to check`).not.toBeNull();
-  return match![1];
+  return source.slice(start, start + 1600);
 }
 
-describe('getTripRideMeta column list', () => {
-  it('never selects the phantom staging lat/lng columns', () => {
+describe('getTripRideMeta read path', () => {
+  it('never names the phantom staging lat/lng columns in any PostgREST select', () => {
+    // The whole-file scan is deliberate: the bug is just as fatal in a sibling
+    // reader (listMyTrips, a future trip card) as it was here.
     expect(source).not.toMatch(/select\('[^']*staging_latitude/);
     expect(source).not.toMatch(/select\('[^']*staging_longitude/);
   });
 
-  it('selects only columns that exist on public.rides', () => {
-    const columns = selectListFor('getTripRideMeta').split(',').map((column) => column.trim());
-    expect(columns).not.toHaveLength(0);
-    for (const column of columns) expect(ALLOWED).toContain(column);
+  it('reads through the RPC, not a rides table select', () => {
+    const body = bodyOf('getTripRideMeta');
+    expect(body).toMatch(/\.rpc\('get_trip_ride_meta'/);
+    // A geography column has no useful PostgREST projection, so a table select
+    // here can never return the coordinates Autopilot's day 1 needs.
+    expect(body).not.toMatch(/\.from\('rides'\)/);
   });
 
-  it('keeps created_by, without which the coordinator check silently fails closed', () => {
-    expect(selectListFor('getTripRideMeta').split(',')).toContain('created_by');
+  it('passes the ride id under the parameter name the function declares', () => {
+    // A mismatched argument name is a PGRST202 at runtime and nothing at build
+    // time; the SQL signature is get_trip_ride_meta(target_ride_id uuid).
+    expect(bodyOf('getTripRideMeta')).toMatch(/target_ride_id:/);
   });
 
   it('reports an unreadable row instead of collapsing it into null', () => {
