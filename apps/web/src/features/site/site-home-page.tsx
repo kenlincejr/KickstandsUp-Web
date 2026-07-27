@@ -32,15 +32,13 @@ export function SiteHomePage() {
           <div className="ksu-site-hero-scrim" aria-hidden="true" />
           <div className="ksu-site-hero-fade" aria-hidden="true" />
           <div className="ksu-site-hero-text">
-            <div className="ksu-site-col">
-              <div className="ksu-site-hero-copy">
-                <p className="ksu-site-hero-eyebrow"><i aria-hidden="true" />The rider connection app</p>
-                <h1>Better rides<br />start <span className="accent">here.</span></h1>
-                <p>
-                  Riding solo is great. Finding riders who match your pace shouldn’t be.{' '}
-                  <strong>KSU fixes that.</strong>
-                </p>
-              </div>
+            <div className="ksu-site-hero-copy">
+              <p className="ksu-site-hero-eyebrow"><i aria-hidden="true" />The rider connection app</p>
+              <h1>Better rides<br />start <span className="accent">here.</span></h1>
+              <p>
+                Riding solo is great. Finding riders who match your pace shouldn’t be.{' '}
+                <strong>KSU fixes that.</strong>
+              </p>
             </div>
           </div>
         </div>
