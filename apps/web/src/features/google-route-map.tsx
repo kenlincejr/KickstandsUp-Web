@@ -172,11 +172,33 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, selectedPoi
   return <div className="google-route-map" aria-label="Route map. Select a route point, then use Place on map to place that exact point. Drag a marker to refine it." ref={host} role="application" />;
 }
 
+/**
+ * The KSU enamel teardrop, matching the device pin exactly
+ * (KickstandsUp src/features/routes/route-map.tsx:334-356): a coloured disc
+ * carrying the identity token with a pointer beneath it. Stops wear rust (you
+ * stop there), vias brass and smaller (they shape the road), start and finish
+ * ink (the route's fixed hardware).
+ *
+ * Selection SCALES rather than recolours — the device calls this out
+ * explicitly, and it matters: a selected stop that turned brass would read as
+ * a via, so selection must never masquerade as a different point kind.
+ *
+ * Previously this was a flat circle painted #f26f4f / #ffb52b / #79b7ff — the
+ * pre-day-mode marketing palette. The rail taught one colour language and the
+ * map spoke another.
+ */
 function markerContent(point: MapPoint) {
+  const via = point.kind === 'via';
   const element = document.createElement('button');
   element.type = 'button';
-  element.className = `route-map-marker ${point.kind} ${point.selected ? 'selected' : ''}`;
-  element.textContent = point.token;
+  element.className = `ksu-map-pin ${via ? 'via' : point.kind === 'stop' ? 'stop' : 'end'} ${point.selected ? 'selected' : ''}`;
   element.setAttribute('aria-label', `${point.token}, ${point.purpose}, ${point.displayName}. Press Enter to edit.`);
+
+  const disc = document.createElement('span');
+  disc.className = 'ksu-map-pin-disc';
+  disc.textContent = point.token;
+  const pointer = document.createElement('span');
+  pointer.className = 'ksu-map-pin-pointer';
+  element.append(disc, pointer);
   return element;
 }

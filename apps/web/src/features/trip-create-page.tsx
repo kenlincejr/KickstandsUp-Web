@@ -210,31 +210,15 @@ export function TripCreatePage() {
         {error ? <div className="ksu-tool-notices"><Notice tone="error">{error}</Notice></div> : null}
         <div className="ksu-split">
           <aside className="ksu-split-panel">
-            <ScreenTitle eyebrow="Start here" title="Dates and staging first.">
-              You add the day-by-day plan next — riders can already see the dates while you work.
+            <ScreenTitle eyebrow="Step 1 of 2" title="Where does it start?">
+              Set the meet-up spot and the dates. You build the day-by-day route on the next
+              screen — one day at a time, with the map tools.
             </ScreenTitle>
 
-            <TextInput label="Trip name" maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="Austin → Sturgis" value={title} />
-
-            <RibbonRule label="Dates" />
-            <div className="ksu-field-grid">
-              <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
-              <TextInput
-                hint={!startIso || !endIso
-                  ? undefined
-                  : datesValid
-                    ? `${days} ${days === 1 ? 'day' : 'days'}`
-                    : Date.parse(endIso) <= Date.parse(startIso)
-                      ? 'Back home has to be after rolling out.'
-                      : 'A trip can cover up to 30 days.'}
-                label="Back home by"
-                onChange={(event) => setEndLocal(event.target.value)}
-                type="datetime-local"
-                value={endLocal}
-              />
-            </div>
-            <TextInput hint="Shown on riders' cards instead of a raw timestamp." label="Departure label (optional)" maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} />
-
+            {/* Staging leads: it is the one control on this panel wired to the big
+                map beside it, and the first thing a rider reaches for. It used to
+                sit fourth, under the name and both dates, which read as "fill in
+                this form" rather than "show me where you're leaving from." */}
             <RibbonRule label="Where it starts" />
             <div className="ksu-place-field">
               <TextInput
@@ -272,6 +256,28 @@ export function TripCreatePage() {
               {staging ? <Button onClick={clearStaging} variant="text">Clear</Button> : null}
             </div>
 
+            <RibbonRule label="When" />
+            <div className="ksu-field-grid">
+              <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
+              <TextInput
+                hint={!startIso || !endIso
+                  ? undefined
+                  : datesValid
+                    ? `${days} ${days === 1 ? 'day' : 'days'}`
+                    : Date.parse(endIso) <= Date.parse(startIso)
+                      ? 'Back home has to be after rolling out.'
+                      : 'A trip can cover up to 30 days.'}
+                label="Back home by"
+                onChange={(event) => setEndLocal(event.target.value)}
+                type="datetime-local"
+                value={endLocal}
+              />
+            </div>
+            <TextInput hint="Shown on riders' cards instead of a raw timestamp." label="Departure label (optional)" maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} />
+
+            <RibbonRule label="Name it" />
+            <TextInput label="Trip name" maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="Austin → Sturgis" value={title} />
+
             <details className="ksu-disclosure">
               <summary>Ride fields (optional)</summary>
               <div className="ksu-disclosure-body">
@@ -289,6 +295,18 @@ export function TripCreatePage() {
               </div>
             </details>
 
+            {/* The owner's question, answered where the rider commits rather than
+                left to be discovered: this page has no waypoints on purpose, and
+                the map tools they are looking for live on the next screen. */}
+            <div className="ksu-next-step">
+              <RibbonRule label="What happens next" />
+              <p>
+                Creating the trip puts the dates on riders’ phones straight away. You’ll land on
+                the day-by-day planner, where each day gets its own route — drop a Start, chain
+                Stops and Ride-thrus with the map tools, and tag each stop for gas, food, or a
+                break. Nothing reaches the roster until you save the plan.
+              </p>
+            </div>
             <Button block disabled={busy} onClick={() => void create()} variant="primary">{busy ? 'Creating…' : 'Create the trip'}</Button>
           </aside>
           <div className={placingPin ? 'ksu-map-frame is-placing' : 'ksu-map-frame'}>

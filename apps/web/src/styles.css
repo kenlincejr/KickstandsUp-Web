@@ -275,7 +275,10 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .route-options label { display: flex; gap: 9px; align-items: center; font-size: .82rem; }
 .route-preview-canvas { position: sticky; top: 16px; align-items: stretch; height: 620px; min-height: 620px; padding: 0; }
 .google-route-map { width: 100%; height: 100%; min-height: 0; background: #10150d; }
-.route-map-marker { min-width: 38px; min-height: 38px; padding: 5px 8px; border: 2px solid #171006; border-radius: 999px; background: #f26f4f; color: #171006; font: 900 .78rem/1 system-ui, sans-serif; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.35); }.route-map-marker.stop { background: #ffb52b; }.route-map-marker.via { background: #79b7ff; }.route-map-marker.selected, .route-map-marker:focus-visible { outline: 3px solid #fff5df; outline-offset: 2px; transform: scale(1.16); }
+/* .route-map-marker removed 2026-07-27 — the pre-day-mode marker palette
+   (#f26f4f / #ffb52b / #79b7ff). Map pins are now .ksu-map-pin in
+   design/page-surfaces.css, matching the device's enamel teardrop and the day
+   tokens the disc rail already uses. Do not reintroduce a second pin style. */
 .map-route-summary { position: absolute; z-index: 1; right: 20px; bottom: 20px; display: grid; grid-template-columns: minmax(230px, 1fr) auto; gap: 10px 14px; max-width: min(720px, calc(100% - 40px)); padding: 14px; border: 1px solid #596448; border-radius: 9px; background: rgba(17,22,13,.94); color: var(--ink); box-shadow: 0 8px 26px rgba(0,0,0,.35); }
 .map-route-summary .kicker { margin: 0; }
 .map-route-summary strong { font-size: .78rem; }

@@ -48,9 +48,50 @@
    the map looks identical whether a click will drop a pin or do nothing. */
 .ksu-map-frame.is-placing { outline: 2px solid var(--ksu-brass); outline-offset: -2px; }
 .ksu-map-frame.is-placing .google-route-map { cursor: crosshair; }
+/* "What happens next" — a recessed plate, not a Notice: this is orientation the
+   rider reads once, not a condition they have to act on. */
+.ksu-next-step { padding: var(--ksu-s-3); border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-2); background: var(--ksu-paper-deep); }
+.ksu-next-step p { margin: var(--ksu-s-1) 0 0; color: var(--ksu-ink-soft); font-size: var(--ksu-t-small); line-height: 1.55; }
 .ksu-staging-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ksu-s-2); margin-top: var(--ksu-s-2); }
 .ksu-staging-actions .ksu-btn { min-height: 38px; }
 .ksu-map-frame .ksu-map-strip { position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; margin: 0; }
+
+/* --- map pins: the device's enamel teardrop (route-map.tsx:334-356) ---
+   Disc 30px, via 24px, 8px pointer. Stops rust, vias brass and smaller,
+   endpoints ink. Selection scales; it never recolours, because a selected stop
+   painted brass would read as a via. */
+.ksu-map-pin {
+  display: grid;
+  justify-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform .14s ease;
+}
+.ksu-map-pin-disc {
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--ksu-ink);
+  color: var(--ksu-card);
+  font-family: var(--ksu-display); font-weight: 400;
+  font-size: .82rem; line-height: 1; letter-spacing: .04em;
+  box-shadow: 0 2px 6px rgba(38, 46, 30, .35);
+}
+/* The pointer is a CSS triangle whose top border carries the disc's colour. */
+.ksu-map-pin-pointer {
+  width: 0; height: 0; margin-top: -1px;
+  border-inline: 5px solid transparent;
+  border-top: 8px solid var(--ksu-ink);
+}
+.ksu-map-pin.stop .ksu-map-pin-disc { background: var(--ksu-rust); }
+.ksu-map-pin.stop .ksu-map-pin-pointer { border-top-color: var(--ksu-rust); }
+.ksu-map-pin.via .ksu-map-pin-disc { width: 24px; height: 24px; background: var(--ksu-brass); font-size: .72rem; }
+.ksu-map-pin.via .ksu-map-pin-pointer { border-top-color: var(--ksu-brass); }
+.ksu-map-pin.selected, .ksu-map-pin:focus-visible { transform: scale(1.16); }
+.ksu-map-pin:focus-visible { outline: 3px solid var(--ksu-card); outline-offset: 2px; border-radius: var(--ksu-r-1); }
 
 /* --- the selected-point card, top-left over the map ---
    Sits opposite the disc rail (bottom-right) so it never covers the controls
