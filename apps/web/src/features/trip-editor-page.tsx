@@ -36,6 +36,7 @@ import {
   getTripRideMeta,
   setTripDates,
   setTripLegs,
+  tripDayCount,
   tripDayHeading,
   tripLegDistanceLabel,
   tripLegOvernightLabel,
@@ -87,6 +88,9 @@ export function TripEditorPage() {
   const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [meta, setMeta] = useState<{ title: string; status: string; staging: { latitude: number; longitude: number } | null; stagingName: string | null; createdBy: string | null } | null>(null);
+  // Why the meta read failed, when it failed — distinct from "loaded, and you
+  // are not the coordinator". Never conflate the two in the UI.
+  const [metaUnreadable, setMetaUnreadable] = useState<string | null>(null);
   const [days, setDays] = useState<TripDayDraft[]>([]);
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [startLocal, setStartLocal] = useState('');
@@ -120,6 +124,11 @@ export function TripEditorPage() {
   // Only the coordinator edits — a joined rider gets the read surface, never a
   // form that 42501s at the last click. Fails CLOSED: no meta, no created_by,
   // or no session user all read as not-coordinator; the server still enforces.
+  // But failing closed is not licence to LIE about why: when the meta read
+  // itself failed we know nothing about who owns this trip, so that state is
+  // tracked separately and gets its own copy. Telling the trip's own creator
+  // "only the rider who created this trip can change it" is how this surface
+  // shipped broken.
   const isCoordinator = Boolean(meta?.createdBy && user?.id && meta.createdBy === user.id);
   const editable = projectionEditable && statusEditable && !terminalLock && isCoordinator;
 
@@ -160,12 +169,13 @@ export function TripEditorPage() {
         return;
       }
       setTrip(loaded);
-      setMeta(rideMeta ? {
-        title: rideMeta.title,
-        status: rideMeta.status,
-        staging: rideMeta.stagingLatitude !== null && rideMeta.stagingLongitude !== null ? { latitude: rideMeta.stagingLatitude, longitude: rideMeta.stagingLongitude } : null,
-        stagingName: rideMeta.stagingDisplayName,
-        createdBy: rideMeta.createdBy,
+      setMetaUnreadable(rideMeta.state === 'unreadable' ? rideMeta.reason : null);
+      setMeta(rideMeta.state === 'loaded' ? {
+        title: rideMeta.meta.title,
+        status: rideMeta.meta.status,
+        staging: rideMeta.meta.stagingLatitude !== null && rideMeta.meta.stagingLongitude !== null ? { latitude: rideMeta.meta.stagingLatitude, longitude: rideMeta.meta.stagingLongitude } : null,
+        stagingName: rideMeta.meta.stagingDisplayName,
+        createdBy: rideMeta.meta.createdBy,
       } : null);
       const loadedDays = loaded.legs.map(legToDay);
       setDays(loadedDays);
@@ -440,13 +450,20 @@ export function TripEditorPage() {
 
   const summaries = days.map(summaryLeg);
   const totalMiles = tripTotalMiles(summaries);
-  const dayWord = days.length === 1 ? 'day' : 'days';
+  // Legs are authoritative once authored; before that the calendar span is the
+  // honest answer. Printing days.length here is what rendered "Aug 1 – Aug 3 ·
+  // 0 days" on a trip whose dates the rider had already set.
+  // `days` is the live editable mirror of trip.legs, so it wins when non-empty;
+  // otherwise defer to the helper for the date-span fallback rather than
+  // re-deriving it here ("Do not 'improve' this" — see tripDayCount).
+  const dayCount = days.length || tripDayCount(trip);
+  const dayWord = dayCount === 1 ? 'day' : 'days';
   const mapPoints = openDay && !openDay.restDay ? mapMarkersFor(editor.draft.points, editor.selectedPointId) : [];
   const plotted = openDay && !openDay.restDay
     ? (editor.freshPreview ? decodePolyline(editor.draft.preview!.encodedPolyline) : editor.definition?.waypoints ?? [])
     : [];
 
-  const summaryLine = `Itinerary · ${days.length} ${dayWord}${totalMiles !== null ? ` · ${totalMiles} mi` : ''}${dirty ? ' · unsaved' : ''}`;
+  const summaryLine = `Itinerary · ${dayCount} ${dayWord}${totalMiles !== null ? ` · ${totalMiles} mi` : ''}${dirty ? ' · unsaved' : ''}`;
 
   return (
     <section className="ksu-day ksu-tool">
@@ -454,7 +471,7 @@ export function TripEditorPage() {
         lead={<ToolbarAction onClick={() => { if (!dirty || window.confirm('Leave without saving? Your unsaved day plan will be lost.')) navigate('/app/trips'); }} side="lead">All trips</ToolbarAction>}
         meta={<>
           {new Date(trip.departureAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} – {new Date(trip.expectedEndAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-          {' · '}{days.length} {dayWord}
+          {' · '}{dayCount} {dayWord}
           {totalMiles !== null ? ` · ${totalMiles} planned mi` : ''}
           {dirty ? ' · unsaved changes' : ''}
           {dailyRemaining !== null && dailyRemaining < 10 ? ` · ${dailyRemaining} road previews left today` : ''}
@@ -465,7 +482,8 @@ export function TripEditorPage() {
       <div className="ksu-tool-body">
         <div className="ksu-tool-notices">
           {!projectionEditable ? <Notice>Access check is {snapshot.projectionState === 'stale' ? 'stale' : 'unavailable'}. You can read this trip; new edits and route previews are paused until KSU reconnects.</Notice> : null}
-          {!isCoordinator ? <Notice>Only the rider who created this trip can change it. You’re viewing the plan.</Notice> : null}
+          {metaUnreadable ? <Notice tone="error">KSU couldn’t confirm who owns this trip, so editing is paused. The plan below is safe to read. Reload to try again.</Notice> : null}
+          {!metaUnreadable && !isCoordinator ? <Notice>Only the rider who created this trip can change it. You’re viewing the plan.</Notice> : null}
           {!statusEditable || terminalLock ? <Notice>This trip has already started or been closed, so the plan is locked. Riders can still see it.</Notice> : null}
           {pageError ? <Notice tone="error">{pageError}</Notice> : null}
           {notice ? <Notice tone="success">{notice}</Notice> : null}

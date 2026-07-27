@@ -298,22 +298,52 @@ export type TripRideMeta = {
   createdBy: string | null;
 };
 
-/** The parent ride row: title, status, and the staging pin the origin chain falls back to. */
-export async function getTripRideMeta(rideId: string): Promise<TripRideMeta | null> {
+/**
+ * Loaded, or a named reason we could not read it. NOT `TripRideMeta | null`:
+ * a null collapses "the read failed" into "you are not the coordinator", and
+ * the editor then asserts a false fact about the rider — which is exactly the
+ * bug this type replaces. Callers must branch on `state`.
+ */
+export type TripRideMetaResult =
+  | { state: 'loaded'; meta: TripRideMeta }
+  | { state: 'unreadable'; reason: string };
+
+/**
+ * The parent ride row: title, status, and the staging pin the origin chain
+ * falls back to.
+ *
+ * `staging_latitude`/`staging_longitude` are NOT columns — `public.rides`
+ * stores the pin as `staging_point extensions.geography(Point,4326)`
+ * (20260712000000_initial_ksu_schema.sql:78), and every `staging_latitude` in
+ * the migration tree is an RPC *parameter* fed to st_makepoint. Selecting them
+ * made PostgREST fail the whole row with 42703 on every trip for every user,
+ * which the old `return null` swallowed into a false "you are not the
+ * coordinator" lockout. Do not add them back.
+ *
+ * Coordinates therefore stay null until a SECURITY DEFINER RPC projects them
+ * through st_x/st_y; Autopilot needs them for day 1's origin and stays blocked
+ * on that RPC. Everything else here — the coordinator check, the title, the
+ * editable gate — works off this select alone.
+ */
+export async function getTripRideMeta(rideId: string): Promise<TripRideMetaResult> {
   const { data, error } = await clientOrThrow()
     .from('rides')
-    .select('id,title,status,staging_display_name,staging_latitude,staging_longitude,created_by')
+    .select('id,title,status,staging_display_name,created_by')
     .eq('id', rideId)
     .maybeSingle();
-  if (error || !data || typeof data.id !== 'string') return null;
+  if (error) return { state: 'unreadable', reason: error.message };
+  if (!data || typeof data.id !== 'string') return { state: 'unreadable', reason: 'Trip not found.' };
   return {
-    id: data.id,
-    title: typeof data.title === 'string' && data.title.trim() ? data.title : 'KSU trip',
-    status: typeof data.status === 'string' ? data.status : 'scheduled',
-    stagingDisplayName: typeof data.staging_display_name === 'string' ? data.staging_display_name : null,
-    stagingLatitude: typeof data.staging_latitude === 'number' && Number.isFinite(data.staging_latitude) ? data.staging_latitude : null,
-    stagingLongitude: typeof data.staging_longitude === 'number' && Number.isFinite(data.staging_longitude) ? data.staging_longitude : null,
-    createdBy: typeof data.created_by === 'string' ? data.created_by : null,
+    state: 'loaded',
+    meta: {
+      id: data.id,
+      title: typeof data.title === 'string' && data.title.trim() ? data.title : 'KSU trip',
+      status: typeof data.status === 'string' ? data.status : 'scheduled',
+      stagingDisplayName: typeof data.staging_display_name === 'string' ? data.staging_display_name : null,
+      stagingLatitude: null,
+      stagingLongitude: null,
+      createdBy: typeof data.created_by === 'string' ? data.created_by : null,
+    },
   };
 }
 
