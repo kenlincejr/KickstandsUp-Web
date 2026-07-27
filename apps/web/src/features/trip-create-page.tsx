@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Notice, RibbonRule, ScreenTitle, Select, StampChip, TextArea, TextInput, Toggle } from '../design/day-kit';
+import { tripCreateReady, tripCreateSteps } from './trip-create-readiness';
 import { Toolbar, ToolbarAction } from '../design/control-language';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
@@ -74,6 +75,8 @@ export function TripCreatePage() {
   const endIso = useMemo(() => toIso(endLocal), [endLocal]);
   const days = spanDays(startIso, endIso);
   const datesValid = Boolean(startIso && endIso && Date.parse(endIso) > Date.parse(startIso) && Date.parse(endIso) <= Date.parse(startIso) + 30 * 86_400_000);
+  const steps = tripCreateSteps({ hasStaging: Boolean(staging), startIso, endIso, datesValid, title });
+  const createReady = tripCreateReady(steps);
 
   useEffect(() => {
     if (staging || stagingQuery.trim().length < 3) { setSuggestions([]); return; }
@@ -204,7 +207,7 @@ export function TripCreatePage() {
         lead={<ToolbarAction onClick={() => navigate('/app/trips')} side="lead">Cancel</ToolbarAction>}
         meta={days ? `${days} ${days === 1 ? 'day' : 'days'}${datesValid ? '' : ' — a trip can cover up to 30 days'}` : undefined}
         title="Plan a trip"
-        trail={<ToolbarAction disabled={busy} onClick={() => void create()} side="trail">{busy ? 'Creating…' : 'Create'}</ToolbarAction>}
+        trail={<ToolbarAction disabled={busy || !createReady} onClick={() => void create()} side="trail">{busy ? 'Creating…' : 'Create'}</ToolbarAction>}
       />
       <div className="ksu-tool-body">
         {error ? <div className="ksu-tool-notices"><Notice tone="error">{error}</Notice></div> : null}
@@ -219,7 +222,7 @@ export function TripCreatePage() {
                 map beside it, and the first thing a rider reaches for. It used to
                 sit fourth, under the name and both dates, which read as "fill in
                 this form" rather than "show me where you're leaving from." */}
-            <RibbonRule label="Where it starts" />
+            <RibbonRule label="1 · Where it starts" />
             <div className="ksu-place-field">
               <TextInput
                 autoComplete="off"
@@ -256,7 +259,7 @@ export function TripCreatePage() {
               {staging ? <Button onClick={clearStaging} variant="text">Clear</Button> : null}
             </div>
 
-            <RibbonRule label="When" />
+            <RibbonRule label="2 · When" />
             <div className="ksu-field-grid">
               <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
               <TextInput
@@ -275,7 +278,7 @@ export function TripCreatePage() {
             </div>
             <TextInput hint="Shown on riders' cards instead of a raw timestamp." label="Departure label (optional)" maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} />
 
-            <RibbonRule label="Name it" />
+            <RibbonRule label="3 · Name it" />
             <TextInput label="Trip name" maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="Austin → Sturgis" value={title} />
 
             <details className="ksu-disclosure">
@@ -298,6 +301,22 @@ export function TripCreatePage() {
             {/* The owner's question, answered where the rider commits rather than
                 left to be discovered: this page has no waypoints on purpose, and
                 the map tools they are looking for live on the next screen. */}
+            {/* Live readiness, the planner's `preview-readiness` pattern: say
+                what is still missing while the rider fills the form, rather
+                than failing on submit. This list IS the reason Create is
+                disabled, so it has to stay honest about what create() enforces. */}
+            <section aria-live="polite" className={`ksu-create-readiness ${createReady ? 'ready' : ''}`}>
+              <RibbonRule label={createReady ? 'Ready to create' : 'Before you create'} />
+              <ul>
+                {steps.map((step) => (
+                  <li className={step.done ? 'complete' : undefined} key={step.id}>
+                    <StampChip label={step.done ? 'Set' : 'Needed'} tone={step.done ? 'moss' : 'rust'} />
+                    <span>{step.done ? step.label : step.todo}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
             <div className="ksu-next-step">
               <RibbonRule label="What happens next" />
               <p>
@@ -307,7 +326,7 @@ export function TripCreatePage() {
                 break. Nothing reaches the roster until you save the plan.
               </p>
             </div>
-            <Button block disabled={busy} onClick={() => void create()} variant="primary">{busy ? 'Creating…' : 'Create the trip'}</Button>
+            <Button block disabled={busy || !createReady} onClick={() => void create()} variant="primary">{busy ? 'Creating…' : 'Create the trip'}</Button>
           </aside>
           <div className={placingPin ? 'ksu-map-frame is-placing' : 'ksu-map-frame'}>
             <GoogleRouteMap

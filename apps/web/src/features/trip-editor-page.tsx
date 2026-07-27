@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { hasAccountCapability } from '@ksu/contracts';
 import { Button, Notice, RibbonRule, ScreenTitle, StampChip, TextArea, TextInput, Toggle, buttonClass } from '../design/day-kit';
+import { CoachMark, coachMarkStorageKey } from './coach-marks';
 import { SummaryBar, Toolbar, ToolbarAction } from '../design/control-language';
 import { RouteMapPalette } from './route-map-palette';
 import { MapStopCard } from './map-stop-card';
@@ -573,6 +574,9 @@ export function TripEditorPage() {
                         editable ? (
                           <>
                             <RibbonRule label="The road" />
+                            <CoachMark storageKey={coachMarkStorageKey('trip-day-editor')}>
+                              Pick Start, then click the map. Choose Stop or Ride thru and keep clicking — each click drops the next point. Tag a stop for gas, food, or a break right on the map.
+                            </CoachMark>
                             {(editor.error ?? editor.hint) ? <Notice tone="error">{editor.error ?? editor.hint}</Notice> : null}
                             <RouteLegEditor editor={editor} />
                             <div className="ksu-row">

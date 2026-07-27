@@ -612,3 +612,25 @@
   .ksu-palette-foot .ksu-disc { width: 34px; height: 34px; }
   .ksu-summary-bar { min-height: 54px; padding: 0 var(--ksu-s-2); }
 }
+
+/* --- coach marks (first-run teaching chips, see features/coach-marks.tsx) ---
+   One-time, dismiss-forever callouts. Never a modal, never a stack — a single
+   row of copy plus a text-variant "Got it" button, styled like a quieter
+   Notice so it reads as a tip rather than a status message. */
+.ksu-coach-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--ksu-s-2);
+  padding: var(--ksu-s-2) var(--ksu-s-3);
+  border: 1px solid var(--ksu-brass);
+  border-radius: var(--ksu-r-2);
+  background: var(--ksu-brass-wash);
+}
+.ksu-coach-mark-copy {
+  flex: 1;
+  margin: 0;
+  color: var(--ksu-ink);
+  font-size: var(--ksu-t-small);
+  line-height: 1.45;
+}
+.ksu-coach-mark-dismiss { flex: none; }

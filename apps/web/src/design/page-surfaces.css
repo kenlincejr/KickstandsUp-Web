@@ -48,6 +48,15 @@
    the map looks identical whether a click will drop a pin or do nothing. */
 .ksu-map-frame.is-placing { outline: 2px solid var(--ksu-brass); outline-offset: -2px; }
 .ksu-map-frame.is-placing .google-route-map { cursor: crosshair; }
+/* Live readiness for trip create — the planner's preview-readiness pattern.
+   Brass while something is outstanding, moss once every step is set. */
+.ksu-create-readiness { padding: var(--ksu-s-3); border: 1px solid var(--ksu-brass); border-radius: var(--ksu-r-2); background: var(--ksu-paper-deep); }
+.ksu-create-readiness.ready { border-color: var(--ksu-moss); background: var(--ksu-moss-wash); }
+.ksu-create-readiness ul { display: grid; gap: var(--ksu-s-2); margin: var(--ksu-s-2) 0 0; padding: 0; list-style: none; }
+.ksu-create-readiness li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ksu-s-2); font-size: var(--ksu-t-small); }
+.ksu-create-readiness li span { color: var(--ksu-ink); }
+.ksu-create-readiness li.complete span { color: var(--ksu-ink-soft); }
+
 /* "What happens next" — a recessed plate, not a Notice: this is orientation the
    rider reads once, not a condition they have to act on. */
 .ksu-next-step { padding: var(--ksu-s-3); border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-2); background: var(--ksu-paper-deep); }
