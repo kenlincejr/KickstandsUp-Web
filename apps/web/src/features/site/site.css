@@ -307,15 +307,16 @@
 /* --------------------------------------------------------- hero (homepage) */
 
 .ksu-site-hero { position: relative; width: 100%; }
-/* Height stops growing at 780px (56vw hits that at ~1393px viewport width). Past
-   that point width must stop growing too, or object-fit: cover keeps scaling the
-   photo up to fill the extra width — cropping ever more off the top/bottom and
-   sliding the riders out from under the fixed-position text on wide monitors.
-   Freezing max-width at the same breakpoint (780px / 0.56) keeps frame and photo
-   locked together above it, so nothing in the hero moves once you're past
-   ordinary desktop widths; the frame just centers with the page background
-   showing at the sides. */
-.ksu-site-hero-frame { position: relative; width: 100%; max-width: calc(780px / 0.56); margin: 0 auto; height: clamp(480px, 56vw, 780px); overflow: hidden; }
+/* No upper bound on height: it tracks 56vw at every width, which is a near-exact
+   match for this photo's own aspect ratio (source is 2000x1125, i.e. 0.5625).
+   Frame and image proportions stay locked together forever, so object-fit: cover
+   never has to crop more than a sliver — the riders don't drift out from under
+   the fixed-position text no matter how wide the window gets. A prior attempt
+   capped height at 780px and froze the frame's max-width to compensate, but that
+   letterboxed the photo at wide viewports, which isn't the full-bleed look this
+   design wants. Do not reintroduce a height cap without also uncapping width, or
+   the crop-drift bug comes back. */
+.ksu-site-hero-frame { position: relative; width: 100%; height: max(480px, 56vw); overflow: hidden; }
 .ksu-site-hero-frame > img {
   width: 100%;
   height: 100%;
