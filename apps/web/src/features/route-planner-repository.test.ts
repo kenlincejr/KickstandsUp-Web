@@ -43,26 +43,30 @@ describe('route planner contract', () => {
   it('requires a fresh preview and never fabricates conditions', () => {
     const repository = readFileSync(resolve(import.meta.dirname, 'route-planner-repository.ts'), 'utf8');
     const planner = readFileSync(resolve(import.meta.dirname, 'route-planner-page.tsx'), 'utf8');
+    const editorHook = readFileSync(resolve(import.meta.dirname, 'use-route-leg-editor.ts'), 'utf8');
+    const editorView = readFileSync(resolve(import.meta.dirname, 'route-leg-editor.tsx'), 'utf8');
+    // The planner surface spans the page plus the extracted editor modules.
+    const plannerSurface = [planner, editorHook, editorView].join('\n');
     const weatherProxy = readFileSync(resolve(import.meta.dirname, '../../../../functions/api/route-weather.js'), 'utf8');
 
     expect(repository).toContain("edgeRequest<RouteWeatherResponse>('route-weather'");
     expect(repository).toContain('Refresh the route preview before checking conditions.');
     expect(planner).toContain('Check route conditions');
-    expect(planner).not.toContain('Next map pin');
-    expect(planner).not.toContain('map-route-summary');
+    expect(plannerSurface).not.toContain('Next map pin');
+    expect(plannerSurface).not.toContain('map-route-summary');
     expect(planner).toContain('Show live traffic');
-    expect(planner).toContain('activePlacementPointId');
-    expect(planner).toContain('placeExistingRoutePoint');
-    expect(planner).toContain('Add a point between Start and Finish');
+    expect(editorHook).toContain('activePlacementPointId');
+    expect(editorHook).toContain('placeExistingRoutePoint');
+    expect(editorView).toContain('Add a point between Start and Finish');
     expect(planner).toContain("scrollIntoView({ behavior: 'smooth', block: 'start' })");
-    expect(planner).toContain('beginWaypointDrag');
-    expect(planner).toContain('routePointIdentity');
+    expect(editorView).toContain('beginWaypointDrag');
+    expect(plannerSurface).toContain('routePointIdentity');
     expect(readFileSync(resolve(import.meta.dirname, 'google-route-map.tsx'), 'utf8')).toContain('AdvancedMarkerElement');
-    expect(planner).toContain('needs a location');
-    expect(planner).toContain("document.addEventListener('pointerdown'");
+    expect(plannerSurface).toContain('needs a location');
+    expect(editorHook).toContain("document.addEventListener('pointerdown'");
     expect(planner).toContain('Weather conditions are temporarily unavailable. Your route is still ready.');
     expect(planner).toContain('setWeather(null);');
-    expect(planner).toContain('saveRoute(definition, preview, routePlanId)');
+    expect(editorHook).toContain('saveRoute(definition, draft.preview, draft.routePlanId)');
     expect(planner).toContain('buildGoogleMapsHandoffs(definition.waypoints)');
     expect(weatherProxy).toContain('/functions/v1/route-weather');
     expect(weatherProxy).toContain("'Cache-Control': 'private, no-store'");
