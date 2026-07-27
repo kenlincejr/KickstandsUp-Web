@@ -1,0 +1,595 @@
+/* ============================================================================
+   KSU DAY KIT — the shared token + component layer for rideksu.com.
+   ----------------------------------------------------------------------------
+   This file is the web half of the app's day-mode design system. The token
+   values are copied verbatim from the installed app's
+   `src/constants/day-theme.ts` and `src/constants/theme.ts`; `tokens.ts` beside
+   this file mirrors them in TypeScript and `tokens.test.ts` fails the build if
+   the two ever drift.
+
+   Colour semantics (carried over from the app, and load-bearing):
+     rust  — the ONE forward-action accent. Never for passive or done state.
+     moss  — done / confirmed.
+     brass — context, progress, provenance (eyebrows, ribbons, premium mark).
+
+   Scope: the tokens live on :root (they are inert values). The day-mode
+   SURFACE is opt-in via `.ksu-day` (or the legacy `.planner-page`, which
+   styles.css treats as a synonym) so the dark marketing/legal/support pages
+   keep rendering exactly as they did.
+   ========================================================================== */
+
+:root {
+  /* --- palette (app DayTheme, verbatim) --- */
+  --ksu-paper: #F1ECD9;
+  --ksu-paper-deep: #E7DFC1;
+  --ksu-card: #FBF8EF;
+  --ksu-ink: #262E1E;
+  --ksu-ink-soft: #5B6350;
+  --ksu-line: #D2C6A0;
+  --ksu-brass: #8C6A22;
+  --ksu-rust: #9C4315;
+  --ksu-moss: #3F5A34;
+  /* Plaque — the only sanctioned dark surface on a day screen. */
+  --ksu-olive: #1F2715;
+  --ksu-olive-edge: rgba(198, 161, 79, .55);
+  /* Text that sits ON a filled accent. */
+  --ksu-on-rust: #FBF8EF;
+  --ksu-on-moss: #FFFFFF;
+  /* Washes derived from the accents — never new hues. */
+  --ksu-brass-wash: rgba(140, 106, 34, .10);
+  --ksu-rust-wash: rgba(156, 67, 21, .10);
+  --ksu-moss-wash: rgba(63, 90, 52, .12);
+  /* Solid disabled paints. A control over a map is never translucent
+     (app rule, route-add-controls.tsx §CONTROLS). */
+  --ksu-face-disabled: #B7B2A4;
+  --ksu-glyph-disabled: #7E7A6F;
+
+  /* --- spacing scale (app Spacing, px) --- */
+  --ksu-s-half: 2px;
+  --ksu-s-1: 4px;
+  --ksu-s-2: 8px;
+  --ksu-s-3: 16px;
+  --ksu-s-4: 24px;
+  --ksu-s-5: 32px;
+  --ksu-s-6: 64px;
+
+  /* --- radii --- */
+  --ksu-r-1: 6px;
+  --ksu-r-2: 9px;
+  --ksu-r-3: 14px;
+  --ksu-r-4: 20px;
+  --ksu-r-pill: 999px;
+
+  /* --- type --- */
+  --ksu-display: "Bebas Neue", Inter, ui-sans-serif, sans-serif;
+  --ksu-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ksu-t-micro: .66rem;
+  --ksu-t-eyebrow: .72rem;
+  --ksu-t-small: .8rem;
+  --ksu-t-body: .94rem;
+  --ksu-t-h3: 1.15rem;
+  --ksu-t-h2: clamp(1.5rem, 3vw, 2.1rem);
+  --ksu-t-h1: clamp(2.1rem, 4.6vw, 3.4rem);
+
+  /* --- elevation --- */
+  --ksu-shadow-float: 0 12px 30px rgba(38, 46, 30, .18);
+  --ksu-shadow-menu: 0 18px 38px rgba(38, 46, 30, .22);
+}
+
+/* ---------------------------------------------------------------- surface */
+
+.ksu-day {
+  background: var(--ksu-paper);
+  color: var(--ksu-ink);
+  font-family: var(--ksu-body);
+}
+
+.ksu-card-surface {
+  padding: var(--ksu-s-3);
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+}
+
+.ksu-stack { display: grid; gap: var(--ksu-s-3); }
+.ksu-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ksu-s-2); }
+
+/* ------------------------------------------------------------ screen title */
+
+.ksu-screen-title { display: grid; gap: var(--ksu-s-1); }
+.ksu-screen-title-eyebrow {
+  margin: 0;
+  color: var(--ksu-brass);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-eyebrow);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.ksu-screen-title-text {
+  margin: 0;
+  color: var(--ksu-ink);
+  /* Bebas has one 400 cut; anything heavier renders as a different face. */
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-h1);
+  line-height: 1.02;
+  letter-spacing: -.01em;
+}
+.ksu-screen-title-sub { margin: 0; color: var(--ksu-ink-soft); font-size: var(--ksu-t-body); line-height: 1.5; }
+
+/* -------------------------------------------------------------- stamp chip */
+/* The one chip language for the whole product (app day-kit `StampChip`). */
+
+.ksu-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-pill);
+  background: var(--ksu-paper-deep);
+  color: var(--ksu-ink);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: .82rem;
+  line-height: 1.15;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ksu-chip-moss { border-color: var(--ksu-moss); background: var(--ksu-moss); color: var(--ksu-on-moss); }
+.ksu-chip-brass { border-color: var(--ksu-brass); background: transparent; color: var(--ksu-brass); }
+.ksu-chip-rust { border-color: var(--ksu-rust); background: var(--ksu-rust); color: var(--ksu-on-rust); }
+
+/* ------------------------------------------------------------ ribbon rule */
+/* Section header: uppercase brass label + hairline + bolt tick. */
+
+.ksu-ribbon { display: flex; align-items: center; gap: var(--ksu-s-2); margin: 0 0 var(--ksu-s-1); }
+.ksu-ribbon-label {
+  color: var(--ksu-brass);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-eyebrow);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.ksu-ribbon-line { flex: 1; height: 1px; background: var(--ksu-brass); opacity: .55; }
+.ksu-ribbon-bolt { width: 5px; height: 5px; background: var(--ksu-brass); opacity: .75; transform: rotate(45deg); }
+
+/* ------------------------------------------------------------------ plaque */
+
+.ksu-plaque { padding: 2px; border-radius: calc(var(--ksu-s-2) + 2px); background: var(--ksu-olive); }
+.ksu-plaque-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ksu-s-2) var(--ksu-s-3);
+  border: 1px solid var(--ksu-olive-edge);
+  border-radius: var(--ksu-s-2);
+  background: var(--ksu-olive);
+  color: var(--ksu-card);
+}
+
+/* ----------------------------------------------------------- premium mark */
+/* A brass diamond, drawn as a rotated square so it carries an accessible
+   name — a bare '◆' glyph is silent to a screen reader and tofu on a font
+   that lacks it. Placement rules are enforced by the React component. */
+
+.ksu-premium-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 var(--ksu-s-half);
+  border-radius: 1px;
+  background: var(--ksu-brass);
+  transform: rotate(45deg);
+  vertical-align: middle;
+}
+
+/* ----------------------------------------------------------------- buttons */
+
+.ksu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ksu-s-2);
+  min-height: 44px;
+  padding: 0 var(--ksu-s-3);
+  border: 1px solid transparent;
+  border-radius: var(--ksu-r-2);
+  background: transparent;
+  font: inherit;
+  font-size: var(--ksu-t-small);
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-align: center;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.ksu-btn:disabled, .ksu-btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.ksu-btn:focus-visible { outline: 2px solid var(--ksu-brass); outline-offset: 2px; }
+
+/* rust = the one forward action */
+.ksu-btn-primary { background: var(--ksu-rust); border-color: var(--ksu-rust); color: var(--ksu-on-rust); }
+.ksu-btn-primary:hover:not(:disabled) { background: #85380F; border-color: #85380F; }
+
+.ksu-btn-secondary { background: var(--ksu-card); border-color: var(--ksu-line); color: var(--ksu-ink); }
+.ksu-btn-secondary:hover:not(:disabled) { border-color: var(--ksu-brass); background: var(--ksu-paper-deep); }
+
+.ksu-btn-text { min-height: 36px; padding: 0 var(--ksu-s-1); color: var(--ksu-brass); }
+.ksu-btn-text:hover:not(:disabled) { text-decoration: underline; }
+
+.ksu-btn-danger { background: transparent; border-color: var(--ksu-rust); color: var(--ksu-rust); }
+.ksu-btn-danger:hover:not(:disabled) { background: var(--ksu-rust-wash); }
+
+.ksu-btn-block { width: 100%; }
+
+/* ---------------------------------------------------------------- toolbar */
+/* The app's planner header: left exit (ink) · centred Bebas title · right
+   forward action (brass). Flat paper, one hairline, no shadow, no chrome. */
+
+.ksu-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+  align-items: center;
+  gap: var(--ksu-s-2);
+  min-height: 62px;
+  padding: 0 var(--ksu-s-2);
+  border-bottom: 1px solid var(--ksu-line);
+  background: var(--ksu-paper);
+}
+.ksu-toolbar-title {
+  margin: 0;
+  color: var(--ksu-ink);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: 1.55rem;
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+.ksu-toolbar-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--ksu-s-2);
+  border: 0;
+  background: transparent;
+  color: var(--ksu-ink);
+  font: inherit;
+  font-size: var(--ksu-t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ksu-toolbar-action:disabled { opacity: .45; cursor: not-allowed; }
+.ksu-toolbar-slot { display: flex; align-items: center; min-width: 0; }
+.ksu-toolbar-slot.lead { justify-content: flex-start; }
+.ksu-toolbar-slot.trail { justify-content: flex-end; }
+.ksu-toolbar-action.trail { color: var(--ksu-brass); }
+.ksu-toolbar-action:hover:not(:disabled) { text-decoration: underline; }
+.ksu-toolbar-meta {
+  grid-column: 1 / -1;
+  margin: 0 0 var(--ksu-s-2);
+  color: var(--ksu-ink-soft);
+  font-size: var(--ksu-t-micro);
+  text-align: center;
+}
+
+/* -------------------------------------------------------- control palette */
+/* The floating vertical rail from the planner: one opaque cream card, large
+   circular icon buttons with an uppercase micro-label beneath, a moss check
+   badge on anything already placed, and a hairline-separated footer row of
+   outlined circular secondary actions in rust. State is carried by SOLID
+   colour, never transparency — a control over a map stays opaque. */
+
+.ksu-palette-anchor { position: absolute; right: var(--ksu-s-2); bottom: var(--ksu-s-2); z-index: 3; }
+.ksu-palette {
+  display: grid;
+  justify-items: center;
+  gap: var(--ksu-s-1);
+  padding: var(--ksu-s-2) var(--ksu-s-1);
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-4);
+  background: var(--ksu-card);
+  box-shadow: var(--ksu-shadow-float);
+}
+.ksu-palette-item {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 66px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.ksu-palette-item:disabled { cursor: not-allowed; }
+.ksu-palette-item:active:not(:disabled) { transform: scale(.96); }
+.ksu-palette-item:focus-visible { outline: 2px solid var(--ksu-brass); outline-offset: 2px; border-radius: var(--ksu-r-1); }
+
+.ksu-disc-halo { padding: 2px; border: 2px solid transparent; border-radius: var(--ksu-r-pill); }
+.ksu-palette-item[aria-pressed="true"] .ksu-disc-halo { border-color: var(--ksu-rust); }
+.ksu-disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--ksu-card);
+  border-radius: var(--ksu-r-pill);
+  /* Muted paints are the enamel blended toward paper — solid, not alpha. */
+  background: var(--ksu-disc-face, #818372);
+  color: var(--ksu-card);
+}
+.ksu-disc-ink { --ksu-disc-face: #818372; }
+.ksu-disc-rust { --ksu-disc-face: #C28F6D; }
+.ksu-disc-moss { --ksu-disc-face: #8F9C7E; }
+.ksu-palette-item[aria-pressed="true"] .ksu-disc-ink { --ksu-disc-face: var(--ksu-ink); }
+.ksu-palette-item[aria-pressed="true"] .ksu-disc-rust { --ksu-disc-face: var(--ksu-rust); }
+.ksu-palette-item[aria-pressed="true"] .ksu-disc-moss { --ksu-disc-face: var(--ksu-moss); }
+.ksu-palette-item:disabled .ksu-disc { --ksu-disc-face: var(--ksu-face-disabled); color: var(--ksu-glyph-disabled); }
+
+.ksu-disc-tick {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--ksu-card);
+  border-radius: var(--ksu-r-pill);
+  background: var(--ksu-moss);
+  color: var(--ksu-on-moss);
+}
+.ksu-disc-caption {
+  color: var(--ksu-ink-soft);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-micro);
+  line-height: 1.15;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ksu-palette-item[aria-pressed="true"] .ksu-disc-caption { color: var(--ksu-rust); }
+.ksu-palette-item:disabled .ksu-disc-caption { color: var(--ksu-face-disabled); }
+
+.ksu-palette-divider { align-self: stretch; height: 1px; margin: var(--ksu-s-half) var(--ksu-s-1); background: var(--ksu-line); }
+.ksu-palette-foot { display: flex; gap: var(--ksu-s-1); }
+.ksu-palette-foot .ksu-palette-item { width: 58px; }
+/* The quiet pair: outlined circles in rust, not filled enamel. */
+.ksu-palette-foot .ksu-disc {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--ksu-rust);
+  background: var(--ksu-card);
+  color: var(--ksu-rust);
+}
+.ksu-palette-foot .ksu-disc-caption { color: var(--ksu-rust); }
+.ksu-palette-foot .ksu-palette-item:disabled .ksu-disc { border-color: var(--ksu-line); background: var(--ksu-card); color: var(--ksu-glyph-disabled); }
+.ksu-palette-foot .ksu-palette-item:disabled .ksu-disc-caption { color: var(--ksu-face-disabled); }
+
+/* A rust error strip on paper, across the foot of the map. */
+.ksu-map-strip {
+  padding: var(--ksu-s-1) var(--ksu-s-3);
+  border-top: 1px solid var(--ksu-line);
+  background: var(--ksu-paper-deep);
+  color: var(--ksu-rust);
+  font-size: var(--ksu-t-small);
+  line-height: 1.4;
+}
+
+/* ------------------------------------------------------------ summary bar */
+/* `Itinerary · 5 points · 54 mi · 1h 1m ⌄` — one opaque cream strip that
+   opens the detail below it. */
+
+.ksu-summary { border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-3); background: var(--ksu-card); overflow: hidden; }
+.ksu-summary-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ksu-s-2);
+  min-height: 60px;
+  padding: 0 var(--ksu-s-3);
+  border: 0;
+  background: var(--ksu-card);
+  color: var(--ksu-ink);
+  font: inherit;
+  font-size: var(--ksu-t-small);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.ksu-summary-bar:hover { background: var(--ksu-paper-deep); }
+.ksu-summary-caret { color: var(--ksu-brass); font-size: .9rem; transition: transform .18s ease; }
+.ksu-summary-bar[aria-expanded="true"] .ksu-summary-caret { transform: rotate(180deg); }
+.ksu-summary-body { padding: var(--ksu-s-3); border-top: 1px solid var(--ksu-line); background: var(--ksu-paper); }
+
+/* ------------------------------------------------------------------ forms */
+/* Native <select> chrome and border-only inputs are what the owner called
+   "basic dropdowns which look awful". Everything below is the day-mode
+   replacement; nothing on an app-side surface should use raw controls. */
+
+.ksu-field { display: grid; gap: var(--ksu-s-1); min-width: 0; }
+.ksu-field-label {
+  color: var(--ksu-brass);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-eyebrow);
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.ksu-field-hint { color: var(--ksu-ink-soft); font-size: var(--ksu-t-micro); line-height: 1.4; }
+.ksu-field-error { color: var(--ksu-rust); font-size: var(--ksu-t-micro); line-height: 1.4; }
+.ksu-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ksu-s-2); }
+
+.ksu-input, .ksu-textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-1);
+  outline: 0;
+  background: var(--ksu-card);
+  color: var(--ksu-ink);
+  font: inherit;
+  font-size: var(--ksu-t-body);
+}
+.ksu-textarea { min-height: 92px; resize: vertical; }
+.ksu-input:focus, .ksu-textarea:focus { border-color: var(--ksu-brass); box-shadow: 0 0 0 3px var(--ksu-brass-wash); }
+.ksu-input:disabled, .ksu-textarea:disabled { background: var(--ksu-paper-deep); color: var(--ksu-ink-soft); cursor: not-allowed; }
+.ksu-input::placeholder, .ksu-textarea::placeholder { color: var(--ksu-ink-soft); opacity: .7; }
+.ksu-input-suffix { display: flex; align-items: center; gap: var(--ksu-s-2); }
+.ksu-input-suffix .ksu-input { flex: 1; }
+.ksu-input-suffix span { color: var(--ksu-ink-soft); font-size: var(--ksu-t-small); }
+
+/* --- the one dropdown --- */
+.ksu-select { position: relative; }
+.ksu-select-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ksu-s-2);
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-1);
+  background: var(--ksu-card);
+  color: var(--ksu-ink);
+  font: inherit;
+  font-size: var(--ksu-t-body);
+  text-align: left;
+  cursor: pointer;
+}
+.ksu-select-button:hover:not(:disabled) { border-color: var(--ksu-brass); }
+.ksu-select-button:focus-visible { border-color: var(--ksu-brass); outline: 0; box-shadow: 0 0 0 3px var(--ksu-brass-wash); }
+.ksu-select-button:disabled { background: var(--ksu-paper-deep); color: var(--ksu-ink-soft); cursor: not-allowed; }
+.ksu-select-button.placeholder { color: var(--ksu-ink-soft); }
+.ksu-select-caret { flex: none; color: var(--ksu-brass); font-size: .7rem; }
+.ksu-select-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--ksu-brass);
+  border-radius: var(--ksu-r-2);
+  background: var(--ksu-card);
+  box-shadow: var(--ksu-shadow-menu);
+}
+.ksu-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ksu-s-2);
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--ksu-line);
+  color: var(--ksu-ink);
+  font-size: var(--ksu-t-body);
+  cursor: pointer;
+}
+.ksu-select-option:last-child { border-bottom: 0; }
+.ksu-select-option.active { background: var(--ksu-paper-deep); }
+.ksu-select-option[aria-selected="true"] { color: var(--ksu-ink); font-weight: 700; }
+.ksu-select-option[aria-selected="true"]::after { content: "✓"; color: var(--ksu-moss); font-weight: 700; }
+
+/* --- toggle --- */
+.ksu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ksu-s-3);
+  min-height: 48px;
+  padding: var(--ksu-s-2) 0;
+  cursor: pointer;
+}
+.ksu-toggle-copy { display: grid; gap: 2px; min-width: 0; }
+.ksu-toggle-copy b { font-size: var(--ksu-t-body); font-weight: 700; }
+.ksu-toggle-copy small { color: var(--ksu-ink-soft); font-size: var(--ksu-t-micro); line-height: 1.4; }
+.ksu-toggle-switch {
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-pill);
+  background: var(--ksu-paper-deep);
+  transition: background .16s ease, border-color .16s ease;
+}
+.ksu-toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ksu-r-pill);
+  background: var(--ksu-card);
+  box-shadow: 0 1px 3px rgba(38, 46, 30, .3);
+  transition: transform .16s ease;
+}
+.ksu-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ksu-toggle input:checked + .ksu-toggle-switch { border-color: var(--ksu-moss); background: var(--ksu-moss); }
+.ksu-toggle input:checked + .ksu-toggle-switch::after { transform: translateX(20px); }
+.ksu-toggle input:focus-visible + .ksu-toggle-switch { outline: 2px solid var(--ksu-brass); outline-offset: 2px; }
+.ksu-toggle input:disabled + .ksu-toggle-switch { opacity: .45; }
+.ksu-toggle:has(input:disabled) { cursor: not-allowed; }
+
+/* --- notice strips --- */
+.ksu-notice {
+  padding: 12px 14px;
+  border: 1px solid var(--ksu-line);
+  border-left-width: 3px;
+  border-radius: var(--ksu-r-2);
+  background: var(--ksu-card);
+  color: var(--ksu-ink);
+  font-size: var(--ksu-t-small);
+  line-height: 1.45;
+}
+.ksu-notice-info { border-left-color: var(--ksu-brass); background: var(--ksu-paper-deep); }
+.ksu-notice-success { border-color: var(--ksu-moss); border-left-color: var(--ksu-moss); background: var(--ksu-moss-wash); }
+.ksu-notice-error { border-color: var(--ksu-rust); border-left-color: var(--ksu-rust); background: var(--ksu-rust-wash); }
+.ksu-notice ul { margin: var(--ksu-s-2) 0 0; padding-left: var(--ksu-s-3); }
+.ksu-notice a { color: var(--ksu-brass); text-decoration: underline; }
+
+/* ------------------------------------------------------------- responsive */
+
+/* The rail must clear a short map area whole — the app sizes it against an
+   iPhone-SE map for the same reason. Below 900 the web map frame is 380px, so
+   the compact rail starts here, not at 600. */
+@media (max-width: 900px) {
+  .ksu-field-grid { grid-template-columns: 1fr; }
+  .ksu-palette-anchor { right: var(--ksu-s-1); bottom: var(--ksu-s-1); }
+  .ksu-palette { padding: var(--ksu-s-1); gap: 2px; }
+  .ksu-palette-item { width: 58px; }
+  .ksu-disc { width: 42px; height: 42px; }
+  .ksu-palette-foot .ksu-palette-item { width: 50px; }
+  .ksu-palette-foot .ksu-disc { width: 36px; height: 36px; }
+}
+
+@media (max-width: 600px) {
+  .ksu-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; padding: 0 var(--ksu-s-1); }
+  .ksu-toolbar-title { font-size: 1.25rem; }
+  .ksu-toolbar-action { padding: 0 var(--ksu-s-1); font-size: var(--ksu-t-micro); }
+  .ksu-palette-item { width: 54px; }
+  /* Still above Apple's 44pt-ish target once the 2px halo + 2px ring are
+     counted; the rail has to clear a 375-wide map area whole. */
+  .ksu-disc { width: 38px; height: 38px; }
+  .ksu-palette-foot .ksu-disc { width: 34px; height: 34px; }
+  .ksu-summary-bar { min-height: 54px; padding: 0 var(--ksu-s-2); }
+}

@@ -27,6 +27,7 @@
 // itself is free/offline (§4.1), and there is nothing to meter until that
 // dispatcher ships. Flagged as follow-up, not silently skipped.
 import { useMemo, useRef, useState } from 'react';
+import { Button, Notice, PremiumMark, RibbonRule, Select, StampChip, TextInput, Toggle } from '../../design/day-kit';
 import { searchPlaces, resolvePlace, previewRoute, decodePolyline, type PlaceSuggestion } from '../route-planner-repository';
 import { autopilotDaysToDrafts } from './autopilot-plan';
 import { resolveInteriorNames } from './autopilot-naming';
@@ -349,24 +350,34 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
   };
 
   if (dismissed) {
-    return <button className="secondary-button" onClick={() => setDismissed(false)} type="button">Plan my days for me</button>;
+    return <Button block onClick={() => setDismissed(false)}>Plan my days for me</Button>;
   }
 
   if (collapsed) {
     return (
-      <div className="planner-panel autopilot-panel autopilot-panel-collapsed">
-        <button className="secondary-button" onClick={() => setCollapsed(false)} type="button">↻ Re-plan with Autopilot</button>
+      <div className="ksu-autopilot collapsed">
+        <Button block onClick={() => setCollapsed(false)}>↻ Re-plan with Autopilot</Button>
       </div>
     );
   }
 
   return (
-    <section className="planner-panel autopilot-panel">
-      <fieldset className="route-options">
-        <legend>Where it ends</legend>
-        <label><span>Destination</span><input autoComplete="off" onChange={(event) => searchDestination(event.target.value)} placeholder="Search where the trip ends" value={destinationQuery} /></label>
+    <section className="ksu-autopilot">
+      {/* PremiumMark rule 1 + 2: one mark, on the entry point to the premium
+          capability, never on the dials inside it. */}
+      <RibbonRule label="Autopilot" />
+      <p className="ksu-autopilot-lede">Autopilot <PremiumMark /> reads the road between your staging pin and where the trip ends, then proposes days you can accept, tune, or ignore.</p>
+
+      <div className="ksu-place-field">
+        <TextInput
+          autoComplete="off"
+          label="Where it ends"
+          onChange={(event) => searchDestination(event.target.value)}
+          placeholder="Search where the trip ends"
+          value={destinationQuery}
+        />
         {destinationSuggestions.length ? (
-          <div className="place-results">
+          <div className="ksu-place-results">
             {destinationSuggestions.map((suggestion) => (
               <button key={suggestion.placeId} onClick={() => void chooseDestination(suggestion)} type="button">
                 <b>{suggestion.primaryText}</b>{suggestion.secondaryText ? <small>{suggestion.secondaryText}</small> : null}
@@ -374,96 +385,109 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
             ))}
           </div>
         ) : null}
-        <label><input checked={avoidHighways} onChange={(event) => setAvoidHighways(event.target.checked)} type="checkbox" /> Avoid highways</label>
-        <label><input checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} type="checkbox" /> Avoid tolls</label>
-        <label><input checked={avoidFerries} onChange={(event) => setAvoidFerries(event.target.checked)} type="checkbox" /> Avoid ferries</label>
-        {profile ? <small>Route previewed · {Math.round(profile.totalMeters / 1609.344)} mi, about {Math.round(profile.totalSeconds / 3600)}h — re-solving on every dial change costs nothing.</small> : null}
-      </fieldset>
+      </div>
+      <Toggle checked={avoidHighways} label="Avoid highways" onChange={setAvoidHighways} />
+      <Toggle checked={avoidTolls} label="Avoid tolls" onChange={setAvoidTolls} />
+      <Toggle checked={avoidFerries} label="Avoid ferries" onChange={setAvoidFerries} />
+      {profile ? (
+        <p className="ksu-field-hint">
+          <StampChip label="Route previewed" tone="moss" />{' '}
+          {Math.round(profile.totalMeters / 1609.344)} mi, about {Math.round(profile.totalSeconds / 3600)}h — re-solving on every dial change costs nothing.
+        </p>
+      ) : null}
 
-      {displayError ? <div className="planner-notice error" role="alert">{displayError}</div> : null}
+      {displayError ? <Notice tone="error">{displayError}</Notice> : null}
 
-      <div className="autopilot-entry">
-        <button className="primary-button autopilot-primary" disabled={busy !== 'idle'} onClick={() => void runPreviewAndSolve()} type="button">
+      <div className="ksu-autopilot-entry">
+        <Button block disabled={busy !== 'idle'} onClick={() => void runPreviewAndSolve()} variant="primary">
           {busy === 'previewing' ? 'Previewing the route…' : busy === 'naming' ? 'Naming the stops along the way…' : 'Plan my days for me'}
-        </button>
-        <button aria-expanded={tuneOpen} className="link-button" onClick={() => setTuneOpen((current) => !current)} type="button">
+        </Button>
+        <Button aria-expanded={tuneOpen} onClick={() => setTuneOpen((current) => !current)} variant="text">
           Tune it first {tuneOpen ? '▴' : '▾'}
-        </button>
-        <button className="link-button" onClick={() => setDismissed(true)} type="button">I’ll build the days myself</button>
+        </Button>
+        <Button onClick={() => setDismissed(true)} variant="text">I’ll build the days myself</Button>
       </div>
 
       {tuneOpen ? (
-        <fieldset className="route-options autopilot-dials">
-          <legend>Dials</legend>
-          <label><span>Daily saddle budget</span>
-            <select onChange={(event) => setDials((current) => ({ ...current, saddleHours: Number(event.target.value) }))} value={dials.saddleHours}>
-              {saddleHourOptions.map((hours) => <option key={hours} value={hours}>{hours} hours</option>)}
-            </select>
-          </label>
-          <label><input checked={dials.saddleHard} onChange={(event) => toggleHard('saddle', event.target.checked)} type="checkbox" /> Hold this exactly (hard)</label>
+        <div className="ksu-autopilot-dials">
+          <RibbonRule label="Dials" />
+          <Select
+            label="Daily saddle budget"
+            onChange={(value) => setDials((current) => ({ ...current, saddleHours: Number(value) }))}
+            options={saddleHourOptions.map((hours) => ({ value: String(hours), label: `${hours} hours` }))}
+            value={String(dials.saddleHours)}
+          />
+          <Toggle checked={dials.saddleHard} label="Hold this exactly" hint="Hard constraint" onChange={(checked) => toggleHard('saddle', checked)} />
 
-          <label><span>Day shape</span>
-            <select onChange={(event) => setDials((current) => ({ ...current, dayShape: event.target.value as DayShape }))} value={dials.dayShape}>
-              <option value="even">Even</option>
-              <option value="front_loaded">Front-loaded</option>
-              <option value="back_loaded">Back-loaded</option>
-            </select>
-          </label>
+          <Select
+            label="Day shape"
+            onChange={(value) => setDials((current) => ({ ...current, dayShape: value as DayShape }))}
+            options={[
+              { value: 'even', label: 'Even' },
+              { value: 'front_loaded', label: 'Front-loaded' },
+              { value: 'back_loaded', label: 'Back-loaded' },
+            ]}
+            value={dials.dayShape}
+          />
 
-          <label><input checked={dials.inBeforeDarkOn} onChange={(event) => setDials((current) => ({ ...current, inBeforeDarkOn: event.target.checked }))} type="checkbox" /> In before dark</label>
-          {dials.inBeforeDarkOn ? <label><input checked={dials.inBeforeDarkHard} onChange={(event) => toggleHard('dark', event.target.checked)} type="checkbox" /> Never after dark (hard)</label> : null}
+          <Toggle checked={dials.inBeforeDarkOn} label="In before dark" onChange={(checked) => setDials((current) => ({ ...current, inBeforeDarkOn: checked }))} />
+          {dials.inBeforeDarkOn ? <Toggle checked={dials.inBeforeDarkHard} hint="Hard constraint" label="Never after dark" onChange={(checked) => toggleHard('dark', checked)} /> : null}
 
-          <label><span>Day count</span>
-            <select
-              onChange={(event) => setDials((current) => ({ ...current, dayCountMode: event.target.value === 'auto' ? 'auto' : Number(event.target.value) }))}
-              value={dials.dayCountMode === 'auto' ? 'auto' : String(dials.dayCountMode)}
-            >
-              <option value="auto">Let Autopilot choose</option>
-              {Array.from({ length: 30 }, (_, i) => i + 1).map((count) => <option key={count} value={count}>{count} {count === 1 ? 'day' : 'days'}</option>)}
-            </select>
-          </label>
-          {dials.dayCountMode !== 'auto' ? <label><input checked={dials.dayCountHard} onChange={(event) => toggleHard('dayCount', event.target.checked)} type="checkbox" /> Pin exactly (hard)</label> : null}
+          <Select
+            label="Day count"
+            onChange={(value) => setDials((current) => ({ ...current, dayCountMode: value === 'auto' ? 'auto' : Number(value) }))}
+            options={[
+              { value: 'auto', label: 'Let Autopilot choose' },
+              ...Array.from({ length: 30 }, (_, i) => i + 1).map((count) => ({ value: String(count), label: `${count} ${count === 1 ? 'day' : 'days'}` })),
+            ]}
+            value={dials.dayCountMode === 'auto' ? 'auto' : String(dials.dayCountMode)}
+          />
+          {dials.dayCountMode !== 'auto' ? <Toggle checked={dials.dayCountHard} hint="Hard constraint" label="Pin exactly" onChange={(checked) => toggleHard('dayCount', checked)} /> : null}
 
-          <label><input checked={dials.returnByEnabled} onChange={(event) => setDials((current) => ({ ...current, returnByEnabled: event.target.checked }))} type="checkbox" /> Back by the trip's end date</label>
-          {dials.returnByEnabled ? <label><input checked={dials.returnByHard} onChange={(event) => toggleHard('returnBy', event.target.checked)} type="checkbox" /> Must make that date (hard)</label> : null}
+          <Toggle checked={dials.returnByEnabled} label="Back by the trip's end date" onChange={(checked) => setDials((current) => ({ ...current, returnByEnabled: checked }))} />
+          {dials.returnByEnabled ? <Toggle checked={dials.returnByHard} hint="Hard constraint" label="Must make that date" onChange={(checked) => toggleHard('returnBy', checked)} /> : null}
 
           {demoteNotice ? (
-            <div className="planner-notice" role="status">
+            <Notice>
               {demoteNotice}
-              <div className="button-row">
-                {activeHardDials(dials).map((dial) => <button key={dial} onClick={() => demote(dial)} type="button">Demote {dialLabel(dial)}</button>)}
+              <div className="ksu-row">
+                {activeHardDials(dials).map((dial) => <Button key={dial} onClick={() => demote(dial)} variant="text">Demote {dialLabel(dial)}</Button>)}
               </div>
-            </div>
+            </Notice>
           ) : null}
-        </fieldset>
+        </div>
       ) : null}
 
       {result?.status === 'solved' ? (
-        <div className="autopilot-proposal">
-          <div className="button-row">
-            <button className="primary-button" disabled={proposalIssues.length > 0} onClick={useTheseDays} type="button">Use these days</button>
-            <small>{result.plan.legs.length} {result.plan.legs.length === 1 ? 'day' : 'days'} · {Math.round(result.plan.totalMeters / 1609.344)} planned mi</small>
+        <div className="ksu-autopilot-proposal">
+          <RibbonRule label="Proposal" />
+          <div className="ksu-row">
+            <Button disabled={proposalIssues.length > 0} onClick={useTheseDays} variant="primary">Use these days</Button>
+            <StampChip label={`${result.plan.legs.length} ${result.plan.legs.length === 1 ? 'day' : 'days'} · ${Math.round(result.plan.totalMeters / 1609.344)} mi`} tone="brass" />
           </div>
           {proposalIssues.length ? (
-            <div className="planner-notice error" role="alert">
+            <Notice tone="error">
               <b>This plan needs the trip's dates adjusted before it can be used:</b>
               <ul>{proposalIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
-            </div>
+            </Notice>
           ) : null}
-          <ol className="autopilot-day-list">
+          <ol className="ksu-autopilot-days">
             {result.plan.legs.map((leg, index) => {
               const anchor = leg.stops[0];
               const trades = result.plan.trades.filter((trade) => trade.dayIndex === index);
               return (
                 <li key={index}>
-                  <b>Day {index + 1}</b>
-                  <p>{leg.reason}</p>
-                  {trades.map((trade, tradeIndex) => <p className="autopilot-trade" key={tradeIndex}>{trade.message}</p>)}
-                  {anchor && proposalDrafts ? (
-                    <button className="link-button" onClick={() => onLodgingCta(index, anchor.displayName, proposalDrafts)} type="button">
-                      {findLodgingCta(anchor.displayName)}
-                    </button>
-                  ) : null}
+                  <span className="ksu-day-ordinal">{index + 1}</span>
+                  <div>
+                    <b>Day {index + 1}</b>
+                    <p>{leg.reason}</p>
+                    {trades.map((trade, tradeIndex) => <p className="ksu-autopilot-trade" key={tradeIndex}>{trade.message}</p>)}
+                    {anchor && proposalDrafts ? (
+                      <Button onClick={() => onLodgingCta(index, anchor.displayName, proposalDrafts)} variant="text">
+                        {findLodgingCta(anchor.displayName)}
+                      </Button>
+                    ) : null}
+                  </div>
                 </li>
               );
             })}
@@ -472,17 +496,13 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
       ) : null}
 
       {result?.status === 'infeasible' ? (
-        <div className="planner-notice error" role="alert">
+        <Notice tone="error">
           <p><b>Those days won't fit.</b> {result.conflict.message}</p>
           {result.conflict.relaxation ? (
-            <div className="button-row">
-              <button className="secondary-button" onClick={useRelaxedDays} type="button">Use the relaxed plan instead</button>
-            </div>
+            <div className="ksu-row"><Button onClick={useRelaxedDays}>Use the relaxed plan instead</Button></div>
           ) : null}
-          {relaxedPlanIssues.length ? (
-            <ul>{relaxedPlanIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
-          ) : null}
-        </div>
+          {relaxedPlanIssues.length ? <ul>{relaxedPlanIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul> : null}
+        </Notice>
       ) : null}
     </section>
   );
