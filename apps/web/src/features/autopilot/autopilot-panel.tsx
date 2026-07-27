@@ -11,9 +11,12 @@
 // existing editor via onAccept).
 //
 // Cost model (§4.3): exactly ONE `previewRoute` call per destination/avoid-
-// flag combination, cached in memory for the whole session. Every dial
-// change below re-solves synchronously from that cached profile — free,
-// offline, no network — via a plain useMemo, not a button.
+// flag combination, cached in memory for the whole session (keyed by
+// fingerprint — gate review 2026-07-27 SHOULD-FIX d — so bouncing between
+// two destinations the rider tried earlier this session never re-fetches
+// either one). Every dial change below re-solves synchronously from that
+// cached profile — free, offline, no network — via a plain useMemo, not a
+// button.
 //
 // Gating: the page (trip-editor-page.tsx via TripAuthoringRoute) already
 // requires `routes.plan.web` (Premium). This panel ADDITIONALLY requires
@@ -26,6 +29,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { searchPlaces, resolvePlace, previewRoute, decodePolyline, type PlaceSuggestion } from '../route-planner-repository';
 import { autopilotDaysToDrafts } from './autopilot-plan';
+import { resolveInteriorNames } from './autopilot-naming';
 import {
   buildRouteProfile,
   deriveCandidateSamples,
@@ -38,7 +42,7 @@ import {
   type RouteProfile,
 } from './trip-autopilot';
 import { findLodgingCta } from './trip-autopilot-reasons';
-import type { TripDayDraft } from '../trip-payload';
+import { validateTripDays, type TripDayDraft, type TripDayIssue } from '../trip-payload';
 
 export type AutopilotStaging = { displayName: string; latitude: number; longitude: number };
 
@@ -50,6 +54,10 @@ export type AutopilotPanelProps = {
   previewsUsed: number;
   previewBudget: number;
   onPreviewUsed: () => void;
+  /** Gate review 2026-07-27 SHOULD-FIX b: the panel's own whole-route preview
+   *  draws the same daily quota as the day editor's previews — surface it
+   *  through the SAME page-level counter, not a second one. */
+  onDailyRemaining: (remaining: number) => void;
   onAccept: (drafts: TripDayDraft[]) => void;
   /** Tapping "Find lodging near X" on a not-yet-accepted proposal day accepts
    *  the whole plan (same explicit-confirm rule as "Use these days") and asks
@@ -106,36 +114,43 @@ function dialLabel(dial: HardDial): string {
   }
 }
 
+type Destination = { displayName: string; placeId?: string; latitude: number; longitude: number };
+
 /** Fingerprint the inputs that actually change the profile — a dial change never touches this (§4.3). */
-function routeFingerprint(destination: { placeId?: string; latitude: number; longitude: number } | null, avoidHighways: boolean, avoidTolls: boolean, avoidFerries: boolean): string | null {
+function routeFingerprint(destination: Destination | null, avoidHighways: boolean, avoidTolls: boolean, avoidFerries: boolean): string | null {
   if (!destination) return null;
   return `${destination.placeId ?? `${destination.latitude},${destination.longitude}`}|${avoidHighways}|${avoidTolls}|${avoidFerries}`;
 }
 
-export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, hasExistingDays, previewsUsed, previewBudget, onPreviewUsed, onAccept, onLodgingCta }: AutopilotPanelProps) {
+type ProfileCacheEntry = { profile: RouteProfile; candidates: AnchorCandidate[] };
+
+export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, hasExistingDays, previewsUsed, previewBudget, onPreviewUsed, onDailyRemaining, onAccept, onLodgingCta }: AutopilotPanelProps) {
   const [dismissed, setDismissed] = useState(false);
   const [collapsed, setCollapsed] = useState(hasExistingDays);
   const [tuneOpen, setTuneOpen] = useState(false);
 
   const [destinationQuery, setDestinationQuery] = useState('');
   const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [destination, setDestination] = useState<{ displayName: string; placeId?: string; latitude: number; longitude: number } | null>(null);
+  const [destination, setDestination] = useState<Destination | null>(null);
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
   const placeSession = useRef(crypto.randomUUID());
 
-  const [profile, setProfile] = useState<RouteProfile | null>(null);
-  const [candidates, setCandidates] = useState<AnchorCandidate[] | null>(null);
-  const [profileFingerprint, setProfileFingerprint] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'idle' | 'previewing'>('idle');
+  // Gate review SHOULD-FIX d: keyed by fingerprint, not a single slot — a
+  // rider who previews Sturgis, then Deadwood, then back to Sturgis pays for
+  // that route exactly once per session, not once per switch.
+  const [profileCache, setProfileCache] = useState<Map<string, ProfileCacheEntry>>(new Map());
+  const [busy, setBusy] = useState<'idle' | 'previewing' | 'naming'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const [dials, setDials] = useState<Dials>(defaultDials);
   const [demoteNotice, setDemoteNotice] = useState<string | null>(null);
 
   const currentFingerprint = routeFingerprint(destination, avoidHighways, avoidTolls, avoidFerries);
-  const profileStale = profile !== null && currentFingerprint !== profileFingerprint;
+  const cacheEntry = currentFingerprint ? profileCache.get(currentFingerprint) ?? null : null;
+  const profile = cacheEntry?.profile ?? null;
+  const candidates = cacheEntry?.candidates ?? null;
 
   const searchDestination = (value: string) => {
     setDestination(null);
@@ -152,11 +167,17 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
       setDestinationSuggestions([]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'KSU could not use that destination.');
+    } finally {
+      // Gate review SHOULD-FIX c: one Places session token per
+      // autocomplete-then-details sequence (Google's own session-token
+      // billing model, mirrored by trip-create-page's staging picker) — the
+      // NEXT search starts a fresh sequence, whether this one succeeded or not.
+      placeSession.current = crypto.randomUUID();
     }
   };
 
   const request: AutopilotRequest | null = useMemo(() => {
-    if (!profile || !candidates || profileStale) return null;
+    if (!profile || !candidates) return null;
     const dayCount = dials.dayCountMode === 'auto' ? undefined : { value: dials.dayCountMode, mode: dials.dayCountHard ? ('hard' as const) : ('soft' as const) };
     const returnBy = dials.returnByEnabled ? { value: tripExpectedEndAt, mode: dials.returnByHard ? ('hard' as const) : ('soft' as const) } : undefined;
     return {
@@ -172,29 +193,48 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
       overnightStandard: 'any',
       weatherPosture: 'suggest',
     };
-  }, [profile, candidates, profileStale, dials, tripDepartureAt, tripExpectedEndAt]);
+  }, [profile, candidates, dials, tripDepartureAt, tripExpectedEndAt]);
 
   // Free, synchronous re-solve on every dial or profile change — no network,
   // no button (§4.3: "re-solve after a nudge or a dial change is free").
-  const result: AutopilotResult | null = useMemo(() => {
-    if (!request) return null;
+  // Gate review SHOULD-FIX e: this used to call setError(...) from inside the
+  // useMemo body — a render-phase setState (the useMemo callback runs DURING
+  // render), which is a React anti-pattern (can double-fire under Strict
+  // Mode, can tear render output from committed state). The catch branch now
+  // only returns data; nothing here calls a state setter.
+  const solveOutcome = useMemo<{ result: AutopilotResult | null; error: string | null }>(() => {
+    if (!request) return { result: null, error: null };
     try {
-      return solveAutopilot(request);
+      return { result: solveAutopilot(request), error: null };
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Autopilot could not solve that combination of dials.');
-      return null;
+      return { result: null, error: reason instanceof Error ? reason.message : 'Autopilot could not solve that combination of dials.' };
     }
   }, [request]);
+  const result = solveOutcome.result;
+  const displayError = error ?? solveOutcome.error;
+
+  // Gate review SHOULD-FIX a: don't let the rider accept a plan the trip's
+  // OWN validator would reject — surface it before "Use these days" is even
+  // clickable, using the exact same drafts that button would send.
+  const proposalDrafts = useMemo(
+    () => (result?.status === 'solved' ? autopilotDaysToDrafts(result.plan, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt }) : null),
+    [result, tripDepartureAt, tripExpectedEndAt],
+  );
+  const proposalIssues: TripDayIssue[] = useMemo(
+    () => (proposalDrafts ? validateTripDays(proposalDrafts, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt }) : []),
+    [proposalDrafts, tripDepartureAt, tripExpectedEndAt],
+  );
 
   const runPreviewAndSolve = async () => {
     if (!staging) { setError('This trip has no staging pin yet — day 1 needs a starting point.'); return; }
     if (!destination) { setError('Search a destination first.'); return; }
     setError(null);
     setCollapsed(false);
+    const fingerprint = currentFingerprint;
     // Already have a fresh profile for this exact destination/avoid-flag
     // combination — solve is already computed by the useMemo above, nothing
     // to fetch (§4.3's cache-in-memory rule).
-    if (profile && !profileStale) return;
+    if (fingerprint && profileCache.has(fingerprint)) return;
     if (previewsUsed >= previewBudget) {
       setError(`You've previewed this trip ${previewBudget} times in this session. Each preview is a paid road calculation — save the plan and come back if you need more.`);
       return;
@@ -212,25 +252,51 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
         ],
       });
       onPreviewUsed();
+      if (typeof preview.dailyRemaining === 'number') onDailyRemaining(preview.dailyRemaining);
       // The web preview response carries no per-leg data (spec §6.1) — always
       // the whole-route fallback path, always interpolated:true, with the
       // solver's "about" honesty prefix doing the work on every reason string.
       const path = decodePolyline(preview.encodedPolyline);
       const builtProfile = buildRouteProfile(path, undefined, preview.durationSeconds);
-      const resolveName = (pointIndex: number): ResolvedAnchorName => {
+
+      // Pass 1 — sample the route with every interior candidate unnamed, to
+      // learn WHICH points the pure sampler picked (stride/dedup/off-route
+      // logic all live in deriveCandidateSamples; this repo must not fork
+      // it — see autopilot-naming.ts's header comment).
+      const nullResolver = (pointIndex: number): ResolvedAnchorName => {
         if (pointIndex === 0) return { name: staging.displayName, nameSource: 'place_search', offRouteMeters: 0 };
         if (pointIndex === builtProfile.points.length - 1) return { name: destination.displayName, nameSource: 'place_search', offRouteMeters: 0 };
-        // KSU-web has no free naming source wired today (place-search is the
-        // PAID Google path — owner decision D-3 forbids calling it per
-        // candidate). Every interior candidate resolves unnamed; the solver's
-        // "Mile N" fallback renders instead. TODO(follow-up): wire the free
-        // Photon discovery-cache Worker (workers/discovery-cache) here once
-        // it's reachable from ksu-web, matching the device's §3.2b resolver.
         return { name: null, nameSource: 'none', offRouteMeters: 0 };
       };
-      setProfile(builtProfile);
-      setCandidates(deriveCandidateSamples(builtProfile, resolveName));
-      setProfileFingerprint(currentFingerprint);
+      const draftCandidates = deriveCandidateSamples(builtProfile, nullResolver);
+      const interior = draftCandidates.filter((c) => c.pointIndex !== 0 && c.pointIndex !== builtProfile.points.length - 1);
+
+      // Pass 2 — resolve real names for those exact interior points via the
+      // free discovery-cache Worker (MUST-FIX 3), throttled well under the
+      // shared IP rate ceiling. Every failure mode (worker not deployed yet =
+      // 404, over the rate ceiling = 429, network error, bad JSON) already
+      // falls back to name:null inside resolveInteriorNames — this call can
+      // never throw and never blocks the panel on a cold/not-yet-deployed worker.
+      setBusy('naming');
+      const resolvedNames = await resolveInteriorNames(interior.map((c) => ({ pointIndex: c.pointIndex, latitude: c.latitude, longitude: c.longitude })));
+
+      // Re-run the SAME pure sampler with real names now known, so its own
+      // dedupe-by-name pass (§4.5 step 3) actually has something to dedupe —
+      // running dedupe against all-null names in pass 1 would have been a
+      // no-op even though several interior points can resolve to the same
+      // town.
+      const namedResolver = (pointIndex: number): ResolvedAnchorName => {
+        if (pointIndex === 0) return { name: staging.displayName, nameSource: 'place_search', offRouteMeters: 0 };
+        if (pointIndex === builtProfile.points.length - 1) return { name: destination.displayName, nameSource: 'place_search', offRouteMeters: 0 };
+        return resolvedNames.get(pointIndex) ?? { name: null, nameSource: 'none', offRouteMeters: 0 };
+      };
+      const finalCandidates = deriveCandidateSamples(builtProfile, namedResolver);
+
+      setProfileCache((current) => {
+        const next = new Map(current);
+        if (fingerprint) next.set(fingerprint, { profile: builtProfile, candidates: finalCandidates });
+        return next;
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'KSU could not preview that route.');
     } finally {
@@ -260,8 +326,8 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
   const demote = (dial: HardDial) => toggleHard(dial, false);
 
   const useTheseDays = () => {
-    if (!result || result.status !== 'solved') return;
-    onAccept(autopilotDaysToDrafts(result.plan, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt }));
+    if (!result || result.status !== 'solved' || !proposalDrafts || proposalIssues.length) return;
+    onAccept(proposalDrafts);
     setCollapsed(true);
   };
 
@@ -300,14 +366,14 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
         <label><input checked={avoidHighways} onChange={(event) => setAvoidHighways(event.target.checked)} type="checkbox" /> Avoid highways</label>
         <label><input checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} type="checkbox" /> Avoid tolls</label>
         <label><input checked={avoidFerries} onChange={(event) => setAvoidFerries(event.target.checked)} type="checkbox" /> Avoid ferries</label>
-        {profile && !profileStale ? <small>Route previewed · {Math.round(profile.totalMeters / 1609.344)} mi, about {Math.round(profile.totalSeconds / 3600)}h — re-solving on every dial change costs nothing.</small> : null}
+        {profile ? <small>Route previewed · {Math.round(profile.totalMeters / 1609.344)} mi, about {Math.round(profile.totalSeconds / 3600)}h — re-solving on every dial change costs nothing.</small> : null}
       </fieldset>
 
-      {error ? <div className="planner-notice error" role="alert">{error}</div> : null}
+      {displayError ? <div className="planner-notice error" role="alert">{displayError}</div> : null}
 
       <div className="autopilot-entry">
-        <button className="primary-button autopilot-primary" disabled={busy === 'previewing'} onClick={() => void runPreviewAndSolve()} type="button">
-          {busy === 'previewing' ? 'Previewing the route…' : 'Plan my days for me'}
+        <button className="primary-button autopilot-primary" disabled={busy !== 'idle'} onClick={() => void runPreviewAndSolve()} type="button">
+          {busy === 'previewing' ? 'Previewing the route…' : busy === 'naming' ? 'Naming the stops along the way…' : 'Plan my days for me'}
         </button>
         <button aria-expanded={tuneOpen} className="link-button" onClick={() => setTuneOpen((current) => !current)} type="button">
           Tune it first {tuneOpen ? '▴' : '▾'}
@@ -364,9 +430,15 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
       {result?.status === 'solved' ? (
         <div className="autopilot-proposal">
           <div className="button-row">
-            <button className="primary-button" onClick={useTheseDays} type="button">Use these days</button>
+            <button className="primary-button" disabled={proposalIssues.length > 0} onClick={useTheseDays} type="button">Use these days</button>
             <small>{result.plan.legs.length} {result.plan.legs.length === 1 ? 'day' : 'days'} · {Math.round(result.plan.totalMeters / 1609.344)} planned mi</small>
           </div>
+          {proposalIssues.length ? (
+            <div className="planner-notice error" role="alert">
+              <b>This plan needs the trip's dates adjusted before it can be used:</b>
+              <ul>{proposalIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
+            </div>
+          ) : null}
           <ol className="autopilot-day-list">
             {result.plan.legs.map((leg, index) => {
               const anchor = leg.stops[0];
@@ -376,12 +448,8 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
                   <b>Day {index + 1}</b>
                   <p>{leg.reason}</p>
                   {trades.map((trade, tradeIndex) => <p className="autopilot-trade" key={tradeIndex}>{trade.message}</p>)}
-                  {anchor ? (
-                    <button
-                      className="link-button"
-                      onClick={() => onLodgingCta(index, anchor.displayName, autopilotDaysToDrafts(result.plan, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt }))}
-                      type="button"
-                    >
+                  {anchor && proposalDrafts ? (
+                    <button className="link-button" onClick={() => onLodgingCta(index, anchor.displayName, proposalDrafts)} type="button">
                       {findLodgingCta(anchor.displayName)}
                     </button>
                   ) : null}

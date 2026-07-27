@@ -1001,6 +1001,12 @@ function spacingPositiveJustification(ctx: SolveContext, toIdx: number, breakdow
   const to = ctx.candidates[toIdx];
   const next = ctx.candidates[toIdx + 1];
   if (!next) return null;
+  // "the next NAMED town" is a claim about a named place. An unnamed sample
+  // cannot back it — on a surface where interior candidates resolve nameless
+  // (the web today), emitting it would be a false statement about a Mile-N
+  // point. Honesty rule §4.10 #5: never assert anything about a place KSU has
+  // not named.
+  if (!next.name) return null;
   const remainingSlackSeconds = Math.max(0, ctx.request.saddleBudgetSeconds.value - breakdown.driveSeconds);
   const paceMetersPerSecond = breakdown.driveSeconds > 0 ? breakdown.driveMeters / breakdown.driveSeconds : 0;
   const remainingSlackMiles = wholeMiles(remainingSlackSeconds * paceMetersPerSecond);

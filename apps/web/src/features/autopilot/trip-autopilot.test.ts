@@ -158,6 +158,34 @@ describe('solveAutopilot — solved fixture (Austin → Sturgis style)', () => {
   });
 });
 
+// MUST-FIX 2, 2026-07-27 gate review: ported from KickstandsUp master 5f6fd08
+// — "the next named town" is a claim about a named place. On the web today,
+// every interior candidate resolves nameless until the /place-reverse worker
+// is deployed (autopilot-naming.ts) — exactly the surface this fix protects.
+describe('solveAutopilot — spacing clause never claims an unnamed next candidate is "the next named town"', () => {
+  it('with every interior candidate unnamed (the real pre-deploy web state), no reason ever says "next named town"', () => {
+    const profile = syntheticProfile(1400, 40);
+    // Mirrors autopilot-panel.tsx's actual resolver shape before/without the
+    // discovery-cache worker: only the origin and terminus are named.
+    const resolveName = (pointIndex: number): ResolvedAnchorName => {
+      if (pointIndex === 0) return { name: 'Austin', nameSource: 'place_search', offRouteMeters: 0 };
+      if (pointIndex === profile.points.length - 1) return { name: 'Sturgis', nameSource: 'place_search', offRouteMeters: 0 };
+      return { name: null, nameSource: 'none', offRouteMeters: 0 };
+    };
+    const candidates = deriveCandidateSamples(profile, resolveName);
+    const request = baseRequest({ profile, candidates });
+    const result = solveAutopilot(request);
+    expect(result.status).toBe('solved');
+    if (result.status !== 'solved') throw new Error('expected solved');
+    for (const leg of result.plan.legs) {
+      expect(leg.reason).not.toMatch(/next named town/);
+      // Every non-rest, non-terminus day's anchor is unnamed here, so it must
+      // render through the Mile-N fallback, never a blank.
+      if (leg.stops.length) expect(leg.reason).toMatch(/^(Mile \d+|Austin|Sturgis) —/);
+    }
+  });
+});
+
 describe('solveAutopilot — infeasible with relaxation', () => {
   it('a hard saddle budget too small for a hard-pinned day count is infeasible, and offers a relaxation that solves', () => {
     const request = baseRequest({
