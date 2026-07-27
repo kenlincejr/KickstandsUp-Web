@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import { hasAccountCapability } from '@ksu/contracts';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
 import { createRouteLegDraft, mapMarkersFor, type RouteLegDraft } from './route-leg-editor-core';
@@ -9,6 +10,7 @@ import { decodePolyline } from './route-planner-repository';
 import { useCapabilities } from './capability-context';
 import { riderCopyForTripError } from './trip-errors';
 import { tripLegOrigin } from './trip-origin';
+import { AutopilotPanel } from './autopilot/autopilot-panel';
 import {
   buildSetTripLegsPayload,
   dayForPayload,
@@ -96,6 +98,10 @@ export function TripEditorPage() {
   const [terminalLock, setTerminalLock] = useState(false);
   const [previewsUsed, setPreviewsUsed] = useState(0);
   const [dailyRemaining, setDailyRemaining] = useState<number | null>(null);
+  // Autopilot's "Find lodging near X" CTA (spec §3.2c) accepts the plan (if
+  // not already accepted) and focuses the named day's OWN lodging fields —
+  // it never writes a lodging value itself, only a placeholder hint.
+  const [pendingLodgingFocus, setPendingLodgingFocus] = useState<{ dayId: string; placeName: string } | null>(null);
 
   // Editing pauses on a stale/unavailable projection; reading never does.
   const projectionEditable = snapshot.projectionState === 'ready';
@@ -211,6 +217,40 @@ export function TripEditorPage() {
 
   const patchDay = (dayId: string, patch: Partial<TripDayDraft>) => {
     setDays((current) => current.map((day) => day.id === dayId ? { ...day, ...patch } : day));
+  };
+
+  // Once the pending-focus day actually lands in `days`, open it. Runs after
+  // every days change so it fires whether the day arrived via "Use these
+  // days" or the lodging CTA's own accept-then-focus call below.
+  useEffect(() => {
+    if (!pendingLodgingFocus) return;
+    if (days.some((day) => day.id === pendingLodgingFocus.dayId)) {
+      openDayEditor(pendingLodgingFocus.dayId);
+    }
+    // Only the day id needs to persist for the placeholder hint; clearing the
+    // request itself is not needed until the panel gets dismissed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
+
+  // Autopilot never writes days directly — this IS the "explicit confirm"
+  // the spec requires (§6.1's placement rule): the rider tapped "Use these
+  // days" (or the relaxed-plan equivalent) inside AutopilotPanel, and only
+  // now does local `days` state change. set_trip_legs still is not called —
+  // that only happens from the existing "Save the plan" button below.
+  const acceptAutopilotDays = (drafts: TripDayDraft[], focus?: { dayIndex: number; placeName: string }) => {
+    if (days.length && !window.confirm('Replace the current day list with Autopilot’s proposal? Your unsaved edits to the existing days will be lost.')) return;
+    closeDayEditor();
+    setDays(drafts);
+    setNotice(null);
+    const focusDraft = focus ? drafts[focus.dayIndex] : undefined;
+    setPendingLodgingFocus(focusDraft ? { dayId: focusDraft.id, placeName: focus!.placeName } : null);
+  };
+
+  const autopilotLodgingCta = (dayIndex: number, placeName: string, drafts: TripDayDraft[]) => {
+    // Rider tapped the CTA on a proposal day that isn't in the editor's day
+    // list yet — accept the plan first (the same explicit-confirm path as
+    // "Use these days"), then focus that day once it exists.
+    acceptAutopilotDays(drafts, { dayIndex, placeName });
   };
 
   const stagingOrigin = meta?.staging ?? null;
@@ -412,6 +452,19 @@ export function TripEditorPage() {
 
       <div className="planner-grid">
         <aside className="planner-panel">
+          {editable && hasAccountCapability(snapshot, 'ai.route_assist') ? (
+            <AutopilotPanel
+              hasExistingDays={days.length > 0}
+              onAccept={(drafts) => acceptAutopilotDays(drafts)}
+              onLodgingCta={autopilotLodgingCta}
+              onPreviewUsed={() => setPreviewsUsed((current) => current + 1)}
+              previewBudget={SESSION_PREVIEW_BUDGET}
+              previewsUsed={previewsUsed}
+              staging={meta?.staging ? { displayName: meta.stagingName ?? `${meta.staging.latitude.toFixed(5)}, ${meta.staging.longitude.toFixed(5)}`, latitude: meta.staging.latitude, longitude: meta.staging.longitude } : null}
+              tripDepartureAt={currentStart || trip.departureAt}
+              tripExpectedEndAt={currentEnd || trip.expectedEndAt}
+            />
+          ) : null}
           <ol className="planner-stop-list trip-day-list">
             {days.map((day, index) => {
               const summary = summaries[index];
@@ -447,7 +500,7 @@ export function TripEditorPage() {
                         </> : <p>{tripLegRouteLabel(summary) ?? 'No stops on this day.'}</p>}
                       </> : null}
                       <fieldset className="route-options"><legend>OVERNIGHT</legend>
-                        <label><span>Where you’re staying</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingNameMax} onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })} value={day.lodgingName} /></label>
+                        <label><span>Where you’re staying</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingNameMax} onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })} placeholder={pendingLodgingFocus?.dayId === day.id ? pendingLodgingFocus.placeName : undefined} value={day.lodgingName} /></label>
                         {!day.lodgingName.trim() && (day.checkInAt || day.checkOutAt) ? <small>Add a name and your check-in times show on riders’ cards.</small> : null}
                         <label><span>Address</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingAddressMax} onChange={(event) => patchDay(day.id, { lodgingAddress: event.target.value })} value={day.lodgingAddress} /></label>
                         <label><span>Booking link</span><input disabled={!editable} maxLength={TRIP_LIMITS.bookingUrlMax} onChange={(event) => patchDay(day.id, { bookingUrl: event.target.value })} placeholder="https://" value={day.bookingUrl} /></label>
