@@ -1,7 +1,11 @@
 import { SitePage } from './site-chrome';
 import { SITE_COLOPHON } from './site-content';
 
-const HERO = '/site/hero-overlook-2560x1440.jpg';
+/* 2000×1125 (16:9), 334 KB — the delivery-sized encode of the design bundle's
+   2560×1440 master (5.1 MB). Same crop, so the 50% 42% object-position still
+   frames the riders. Never swap an unoptimised master back in: this image is
+   the homepage LCP. */
+const HERO = '/site/hero-overlook-2000x1125.jpg';
 
 /**
  * The homepage is deliberately short: hero photo banner + colophon strip, then
@@ -20,8 +24,8 @@ export function SiteHomePage() {
           <img
             src={HERO}
             alt="Riders and bikes at a mountain overlook at sunrise, checking the KSU app"
-            width={2560}
-            height={1440}
+            width={2000}
+            height={1125}
             fetchPriority="high"
             decoding="async"
           />
