@@ -70,6 +70,9 @@ KickstandsUp-Web/                     # public website repository
 | `/auth/callback` | OAuth redirect | Web | PKCE completion; never CDN cached |
 | `/app/*` | Signed-in rider | Web | Client application; RLS remains authoritative |
 | `/app/planner` | Premium-capable rider | Web | Desktop planner shell and route revisions |
+| `/app/trips` | Premium-capable rider | Web | Trip list for the coordinator; RLS authoritative |
+| `/app/trips/new` | Premium-capable rider | Web | Trip creation; single idempotent create RPC |
+| `/app/trips/:rideId` | Trip coordinator | Web | Day authoring; one atomic `set_trip_legs` per save; reading stays free for invited/joined riders |
 | `/app/clubs` | Club member/officer | Web | Club home and permission-gated officer tools |
 | `/app/clubs/:clubId/billing` | Club billing administrator | Web + Supabase Edge | Organization status, annual Checkout, invoices/portal; server capability required |
 | `/.well-known/*` | Operating systems | Web | App association documents with exact content types |

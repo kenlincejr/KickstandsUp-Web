@@ -288,6 +288,35 @@ export async function setTripLegs(rideId: string, legs: unknown[]): Promise<numb
   return typeof data === 'number' ? data : legs.length;
 }
 
+export type TripRideMeta = {
+  id: string;
+  title: string;
+  status: string;
+  stagingDisplayName: string | null;
+  stagingLatitude: number | null;
+  stagingLongitude: number | null;
+  createdBy: string | null;
+};
+
+/** The parent ride row: title, status, and the staging pin the origin chain falls back to. */
+export async function getTripRideMeta(rideId: string): Promise<TripRideMeta | null> {
+  const { data, error } = await clientOrThrow()
+    .from('rides')
+    .select('id,title,status,staging_display_name,staging_latitude,staging_longitude,created_by')
+    .eq('id', rideId)
+    .maybeSingle();
+  if (error || !data || typeof data.id !== 'string') return null;
+  return {
+    id: data.id,
+    title: typeof data.title === 'string' && data.title.trim() ? data.title : 'KSU trip',
+    status: typeof data.status === 'string' ? data.status : 'scheduled',
+    stagingDisplayName: typeof data.staging_display_name === 'string' ? data.staging_display_name : null,
+    stagingLatitude: typeof data.staging_latitude === 'number' && Number.isFinite(data.staging_latitude) ? data.staging_latitude : null,
+    stagingLongitude: typeof data.staging_longitude === 'number' && Number.isFinite(data.staging_longitude) ? data.staging_longitude : null,
+    createdBy: typeof data.created_by === 'string' ? data.created_by : null,
+  };
+}
+
 export type TripListRow = {
   id: string;
   title: string;

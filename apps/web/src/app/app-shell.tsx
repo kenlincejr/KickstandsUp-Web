@@ -12,6 +12,7 @@ export function AppShell() {
           <NavLink to="/app/rides">My rides</NavLink>
           <NavLink to="/app/routes">My routes</NavLink>
           <NavLink to="/app/planner">Plan a route</NavLink>
+          <NavLink to="/app/trips">Plan a trip</NavLink>
           <NavLink to="/app/clubs">Club command</NavLink>
           <NavLink to="/app/account">Account</NavLink>
         </nav>

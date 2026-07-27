@@ -13,6 +13,10 @@ import { RouteDetailPage } from '../features/route-detail-page';
 import { RouteLibraryPage } from '../features/route-library-page';
 import { RideListPage } from '../features/ride-list-page';
 import { RideRoutePage } from '../features/ride-route-page';
+import { TripAuthoringRoute } from '../features/trip-authoring-route';
+import { TripCreatePage } from '../features/trip-create-page';
+import { TripEditorPage } from '../features/trip-editor-page';
+import { TripListPage } from '../features/trip-list-page';
 
 export function App() {
   return (
@@ -32,6 +36,11 @@ export function App() {
           <Route path="routes/:routeId" element={<RouteDetailPage />} />
           <Route element={<PremiumRoute />}>
             <Route path="planner" element={<RoutePlannerPage />} />
+          </Route>
+          <Route element={<TripAuthoringRoute />}>
+            <Route path="trips" element={<TripListPage />} />
+            <Route path="trips/new" element={<TripCreatePage />} />
+            <Route path="trips/:rideId" element={<TripEditorPage />} />
           </Route>
           <Route path="clubs" element={<ClubConsolePage />} />
           <Route path="account" element={<AccountPage />} />

@@ -98,4 +98,18 @@ describe('Cloudflare delivery contract', () => {
     expect(connectFunction).toContain('A rider wants to connect');
     expect(connectFunction).not.toContain('invited to a KSU ride');
   });
+  it('registers the trip-authoring surface: routes, nav, and the URL ownership table', () => {
+    const routes = repoFile('apps/web/src/app/app.tsx');
+    const shell = repoFile('apps/web/src/app/app-shell.tsx');
+    const architecture = repoFile('WEB_ARCHITECTURE.md');
+
+    expect(routes).toContain('path="trips"');
+    expect(routes).toContain('path="trips/new"');
+    expect(routes).toContain('path="trips/:rideId"');
+    expect(routes).toContain('TripAuthoringRoute');
+    expect(shell).toContain('Plan a trip');
+    expect(architecture).toContain('| `/app/trips` |');
+    expect(architecture).toContain('| `/app/trips/new` |');
+    expect(architecture).toContain('| `/app/trips/:rideId` |');
+  });
 });
