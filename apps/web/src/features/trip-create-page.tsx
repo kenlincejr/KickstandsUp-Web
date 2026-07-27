@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button, Notice, RibbonRule, ScreenTitle, Select, StampChip, TextArea, TextInput, Toggle } from '../design/day-kit';
+import { Toolbar, ToolbarAction } from '../design/control-language';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
 import { riderCopyForTripError } from './trip-errors';
@@ -12,6 +14,9 @@ const paceOptions = ['Chill', 'Steady', 'Spirited'];
 const bikeFitOptions = ['All bikes welcome', 'Cruisers', 'Sport bikes', 'ADV / dual-sport', 'Touring', 'Scooters / small displacement'];
 const experienceFitOptions = ['All experience levels', 'New rider friendly', 'Comfortable beginner', 'Intermediate', 'Advanced only'];
 const rideStyleOptions = ['Scenic', 'Twisties', 'Highway cruise', 'Coffee run', 'Dinner ride', 'Bike night', 'Charity / event', 'Off-pavement', 'Training / new-rider friendly'];
+
+/** Ride fields are free text on the wire; the day-kit Select needs {value,label}. */
+const asOptions = (values: readonly string[]) => values.map((value) => ({ value, label: value }));
 
 type StagingPin = {
   displayName: string;
@@ -154,64 +159,100 @@ export function TripCreatePage() {
   // not fresh (reading existing trips stays open — that lives on other pages).
   if (snapshot.projectionState !== 'ready') {
     return (
-      <section className="tool-page locked-feature">
-        <p className="kicker">KSU TRIPS</p>
-        <h1>{snapshot.projectionState === 'stale' ? 'Trip planning needs a fresh check.' : "We can't verify trip planning access."}</h1>
-        <p>{snapshot.projectionState === 'stale'
-          ? "Your last access check is stale, so new trips stay paused until KSU reconnects. Trips you've already published still show on riders' phones."
-          : "KSU couldn't load your server access. Planning stays paused; nothing you've already saved or published is affected."}</p>
+      <section className="tool-page ksu-day ksu-page">
+        <ScreenTitle eyebrow="KSU Trips" title={snapshot.projectionState === 'stale' ? 'Trip planning needs a fresh check.' : "We can't verify trip planning access."}>
+          {snapshot.projectionState === 'stale'
+            ? "Your last access check is stale, so new trips stay paused until KSU reconnects. Trips you've already published still show on riders' phones."
+            : "KSU couldn't load your server access. Planning stays paused; nothing you've already saved or published is affected."}
+        </ScreenTitle>
       </section>
     );
   }
 
   return (
-    <section className="tool-page planner-page">
-      <header className="tool-header">
-        <div><p className="kicker">KSU TRIPS</p><h1>Start a multi-day trip.</h1><p>Dates and staging first. You add the day-by-day plan next — riders can already see the dates while you work.</p></div>
-      </header>
-      {error ? <div className="planner-notice error" role="alert">{error}</div> : null}
-      <div className="planner-grid">
-        <aside className="planner-panel">
-          <label className="planner-title"><span>Trip name</span><input maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="Austin → Sturgis" value={title} /></label>
-          <fieldset className="route-options"><legend>Dates</legend>
-            <label><span>Rolling out</span><input onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} /></label>
-            <label><span>Back home by</span><input onChange={(event) => setEndLocal(event.target.value)} type="datetime-local" value={endLocal} /></label>
-            <small aria-live="polite">{days ? `${days} ${days === 1 ? 'day' : 'days'}${datesValid ? '' : ' — a trip can cover up to 30 days'}` : 'End strictly after start, within 30 days.'}</small>
-            <label><span>Departure label (optional)</span><input maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} /></label>
-          </fieldset>
-          <fieldset className="route-options"><legend>Where it starts</legend>
-            <label><span>Staging spot</span><input autoComplete="off" onChange={(event) => { setStaging(null); setStagingQuery(event.target.value); }} placeholder="Search the meet-up spot" value={stagingQuery} /></label>
-            {suggestions.length ? <div className="place-results">{suggestions.map((suggestion) => <button key={suggestion.placeId} onClick={() => void chooseStaging(suggestion)} type="button"><b>{suggestion.primaryText}</b>{suggestion.secondaryText ? <small>{suggestion.secondaryText}</small> : null}</button>)}</div> : null}
-            <small>{staging ? `Pinned · ${staging.latitude.toFixed(4)}, ${staging.longitude.toFixed(4)} — Day 1 navigation starts here.` : 'Search, or click the map to drop the pin. Day 1 navigation starts here.'}</small>
-          </fieldset>
-          <details className="route-options">
-            <summary>Ride fields (optional)</summary>
-            <label><span>Pace</span><select onChange={(event) => setPace(event.target.value)} value={pace}><option value="">Choose pace</option>{paceOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label><span>Bike fit</span><select onChange={(event) => setBikeFit(event.target.value)} value={bikeFit}><option value="">Choose bike fit</option>{bikeFitOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label><span>Experience fit</span><select onChange={(event) => setExperienceFit(event.target.value)} value={experienceFit}><option value="">Choose experience fit</option>{experienceFitOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label><span>Ride style</span><select onChange={(event) => setRideStyle(event.target.value)} value={rideStyle}><option value="">Choose ride style</option>{rideStyleOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label><input checked={chatEnabled} onChange={(event) => setChatEnabled(event.target.checked)} type="checkbox" /> Ride chat on</label>
-            <label><span>Max riders (optional)</span><input inputMode="numeric" onChange={(event) => setMaxRiders(event.target.value.replace(/\D/g, '').slice(0, 3))} value={maxRiders} /></label>
-            <label><span>Notes</span><textarea maxLength={1000} onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
-            <label><span>Surface notes</span><textarea maxLength={500} onChange={(event) => setSurfaceNotes(event.target.value)} value={surfaceNotes} /></label>
-            <label><span>Logistics notes</span><textarea maxLength={500} onChange={(event) => setLogisticsNotes(event.target.value)} value={logisticsNotes} /></label>
-            <label><span>Sweep label</span><input maxLength={80} onChange={(event) => setSweepLabel(event.target.value)} value={sweepLabel} /></label>
-            <label><span>Public description</span><textarea maxLength={500} onChange={(event) => setPublicDescription(event.target.value)} value={publicDescription} /></label>
-          </details>
-          <button className="primary-button" disabled={busy} onClick={() => void create()} type="button">{busy ? 'Creating…' : 'Create the trip'}</button>
-        </aside>
-        <div className="map-canvas route-preview-canvas">
-          <GoogleRouteMap
-            apiKey={publicEnv.googleMapsBrowserKey}
-            mapId={publicEnv.googleMapId}
-            onMapClick={dropStagingPin}
-            onPointMoved={(_id, coordinates) => dropStagingPin(coordinates)}
-            onPointSelected={() => undefined}
-            points={staging ? [{ id: 'staging', kind: 'origin', displayName: staging.displayName, latitude: staging.latitude, longitude: staging.longitude, token: 'S', purpose: 'Start', selected: true }] : []}
-            routePoints={[]}
-            selectedPointId={staging ? 'staging' : null}
-            showTraffic={false}
-          />
+    <section className="ksu-day ksu-tool">
+      {/* The app's planner header: exit left in ink, Bebas title centred, the
+          one forward action right in brass. */}
+      <Toolbar
+        lead={<ToolbarAction onClick={() => navigate('/app/trips')} side="lead">Cancel</ToolbarAction>}
+        meta={days ? `${days} ${days === 1 ? 'day' : 'days'}${datesValid ? '' : ' — a trip can cover up to 30 days'}` : 'End strictly after start, within 30 days.'}
+        title="Plan a trip"
+        trail={<ToolbarAction disabled={busy} onClick={() => void create()} side="trail">{busy ? 'Creating…' : 'Create'}</ToolbarAction>}
+      />
+      <div className="ksu-tool-body">
+        {error ? <div className="ksu-tool-notices"><Notice tone="error">{error}</Notice></div> : null}
+        <div className="ksu-split">
+          <aside className="ksu-split-panel">
+            <ScreenTitle eyebrow="Start here" title="Dates and staging first.">
+              You add the day-by-day plan next — riders can already see the dates while you work.
+            </ScreenTitle>
+
+            <TextInput label="Trip name" maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="Austin → Sturgis" value={title} />
+
+            <RibbonRule label="Dates" />
+            <div className="ksu-field-grid">
+              <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
+              <TextInput label="Back home by" onChange={(event) => setEndLocal(event.target.value)} type="datetime-local" value={endLocal} />
+            </div>
+            <TextInput hint="Shown on riders' cards instead of a raw timestamp." label="Departure label (optional)" maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} />
+
+            <RibbonRule label="Where it starts" />
+            <div className="ksu-place-field">
+              <TextInput
+                autoComplete="off"
+                hint={staging
+                  ? `Pinned · ${staging.latitude.toFixed(4)}, ${staging.longitude.toFixed(4)} — Day 1 navigation starts here.`
+                  : 'Search, or click the map to drop the pin. Day 1 navigation starts here.'}
+                label="Staging spot"
+                onChange={(event) => { setStaging(null); setStagingQuery(event.target.value); }}
+                placeholder="Search the meet-up spot"
+                value={stagingQuery}
+              />
+              {suggestions.length ? (
+                <div className="ksu-place-results">
+                  {suggestions.map((suggestion) => (
+                    <button key={suggestion.placeId} onClick={() => void chooseStaging(suggestion)} type="button">
+                      <b>{suggestion.primaryText}</b>
+                      {suggestion.secondaryText ? <small>{suggestion.secondaryText}</small> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {staging ? <StampChip label="Staging set" tone="moss" /> : <StampChip label="Staging needed" tone="rust" />}
+
+            <details className="ksu-disclosure">
+              <summary>Ride fields (optional)</summary>
+              <div className="ksu-disclosure-body">
+                <Select label="Pace" onChange={setPace} options={asOptions(paceOptions)} placeholder="Choose pace" value={pace} />
+                <Select label="Bike fit" onChange={setBikeFit} options={asOptions(bikeFitOptions)} placeholder="Choose bike fit" value={bikeFit} />
+                <Select label="Experience fit" onChange={setExperienceFit} options={asOptions(experienceFitOptions)} placeholder="Choose experience fit" value={experienceFit} />
+                <Select label="Ride style" onChange={setRideStyle} options={asOptions(rideStyleOptions)} placeholder="Choose ride style" value={rideStyle} />
+                <Toggle checked={chatEnabled} hint="Riders can talk to each other on the ride card." label="Ride chat on" onChange={setChatEnabled} />
+                <TextInput inputMode="numeric" label="Max riders (optional)" onChange={(event) => setMaxRiders(event.target.value.replace(/\D/g, '').slice(0, 3))} value={maxRiders} />
+                <TextArea label="Notes" maxLength={1000} onChange={(event) => setNotes(event.target.value)} value={notes} />
+                <TextArea label="Surface notes" maxLength={500} onChange={(event) => setSurfaceNotes(event.target.value)} value={surfaceNotes} />
+                <TextArea label="Logistics notes" maxLength={500} onChange={(event) => setLogisticsNotes(event.target.value)} value={logisticsNotes} />
+                <TextInput label="Sweep label" maxLength={80} onChange={(event) => setSweepLabel(event.target.value)} value={sweepLabel} />
+                <TextArea label="Public description" maxLength={500} onChange={(event) => setPublicDescription(event.target.value)} value={publicDescription} />
+              </div>
+            </details>
+
+            <Button block disabled={busy} onClick={() => void create()} variant="primary">{busy ? 'Creating…' : 'Create the trip'}</Button>
+          </aside>
+          <div className="ksu-map-frame">
+            <GoogleRouteMap
+              apiKey={publicEnv.googleMapsBrowserKey}
+              mapId={publicEnv.googleMapId}
+              onMapClick={dropStagingPin}
+              onPointMoved={(_id, coordinates) => dropStagingPin(coordinates)}
+              onPointSelected={() => undefined}
+              points={staging ? [{ id: 'staging', kind: 'origin', displayName: staging.displayName, latitude: staging.latitude, longitude: staging.longitude, token: 'S', purpose: 'Start', selected: true }] : []}
+              routePoints={[]}
+              selectedPointId={staging ? 'staging' : null}
+              showTraffic={false}
+            />
+          </div>
         </div>
       </div>
     </section>

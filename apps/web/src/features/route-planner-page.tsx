@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Notice, RibbonRule, Select, StampChip, TextInput, Toggle } from '../design/day-kit';
+import { RouteMapPalette } from './route-map-palette';
 import { buildGoogleMapsHandoffs } from './google-maps-handoff';
 import { GoogleRouteMap } from './google-route-map';
 import { mapMarkersFor } from './route-leg-editor-core';
@@ -137,8 +139,8 @@ export function RoutePlannerPage() {
           </details>
         </div>
       </header>
-      {error ? <div className="planner-notice error" role="alert">{error}</div> : null}
-      {saved ? <div className="planner-notice success">Route saved to My routes. <Link to={`/app/routes/${saved.routePlanId}`}>Open saved route →</Link></div> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {saved ? <Notice tone="success">Route saved to My routes. <Link to={`/app/routes/${saved.routePlanId}`}>Open saved route →</Link></Notice> : null}
       {showPlanningGuide ? <section className="planner-guide" aria-labelledby="planner-guide-title">
         <div><p className="kicker">PLAN THIS RIDE</p><h2 id="planner-guide-title">Three moves. No mystery waypoint.</h2></div>
         <ol>{plannerGuideSteps.map((step, index) => <li key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong><small>{step.detail}</small></span></li>)}</ol>
@@ -146,17 +148,51 @@ export function RoutePlannerPage() {
       </section> : null}
       <div className="planner-grid">
         <aside className="planner-panel">
-          <label className="planner-title"><span>Route name</span><input maxLength={120} onChange={(event) => actions.setTitle(event.target.value)} value={title} /></label>
+          <TextInput label="Route name" maxLength={120} onChange={(event) => actions.setTitle(event.target.value)} value={title} />
           <div className="metric-row">
             <span><b>{preview ? miles(preview.distanceMeters) : '—'}</b> distance</span>
             <span><b>{preview ? rideTime(preview.durationSeconds) : '—'}</b> saddle</span>
             <span><b>{points.length}</b> points</span>
           </div>
-          <RouteLegEditor editor={editor} roadPreferenceExtras={<label><input checked={showTraffic} onChange={(event) => setShowTraffic(event.target.checked)} type="checkbox" /> Show live traffic</label>} />
-          <section className="smart-stops" aria-labelledby="smart-stops-title"><p className="kicker">SMART STOPS</p><h2 id="smart-stops-title">Fuel and crew-break windows.</h2><p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p>{garage.length ? <label><span>Ride this bike</span><select value={selectedBikeId} onChange={(event) => { const bike = garage.find((candidate) => candidate.id === event.target.value); const plan = bike && fuelPlanForBike(bike, Number(fuelReservePercent)); setSelectedBikeId(event.target.value); if (plan) { setFuelRangeMiles(String(plan.rangeMiles)); setFuelSource(plan.source); } }}><option value="manual">Use a route-only plan</option>{garage.map((bike) => <option key={bike.id} value={bike.id}>{bike.label}{bike.isActive ? ' (active)' : ''}</option>)}</select></label> : <small>No garage bike is required. Use a range you trust for this ride.</small>}<small className="point-purpose">{fuelPlanSnapshot ? plannerFuelSourceLabel(fuelPlanSnapshot.source) : 'Enter a comfortable range between 40 and 400 miles.'}{fuelPlanSnapshot?.bikeLabel ? ` · ${fuelPlanSnapshot.bikeLabel}` : ''}. This stays private to you.</small><div className="smart-stop-inputs"><label><span>Comfortable range</span><input inputMode="numeric" max="400" min="40" onChange={(event) => { setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} value={fuelRangeMiles} /> mi</label><label><span>Keep in reserve</span><input inputMode="numeric" max="50" min="5" onChange={(event) => { setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} value={fuelReservePercent} /> %</label></div>{smartStops ? smartStops.length ? <ol className="smart-stop-list">{smartStops.map((mile, index) => <li key={mile}><b>Fuel window {index + 1}</b><span>Start looking near mile {Math.max(1, mile - 15)} · aim to fuel by mile {mile}</span><button className="text-button" disabled={points.length >= 27} onClick={() => addFuelStop(mile)} type="button">Add fuel stop near this window</button></li>)}</ol> : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}</section>
+          <RouteLegEditor editor={editor} roadPreferenceExtras={<Toggle checked={showTraffic} label="Show live traffic" onChange={setShowTraffic} />} />
+          <section className="smart-stops" aria-labelledby="smart-stops-title">
+            <RibbonRule label="Smart stops" />
+            <h2 id="smart-stops-title">Fuel and crew-break windows.</h2>
+            <p>Set the range you trust, not the number printed in a brochure. KSU plans the window; you choose the actual stop.</p>
+            {garage.length ? (
+              <Select
+                label="Ride this bike"
+                onChange={(value) => {
+                  const bike = garage.find((candidate) => candidate.id === value);
+                  const plan = bike && fuelPlanForBike(bike, Number(fuelReservePercent));
+                  setSelectedBikeId(value);
+                  if (plan) { setFuelRangeMiles(String(plan.rangeMiles)); setFuelSource(plan.source); }
+                }}
+                options={[{ value: 'manual', label: 'Use a route-only plan' }, ...garage.map((bike) => ({ value: bike.id, label: `${bike.label}${bike.isActive ? ' (active)' : ''}` }))]}
+                value={selectedBikeId}
+              />
+            ) : <small className="ksu-field-hint">No garage bike is required. Use a range you trust for this ride.</small>}
+            <small className="point-purpose">{fuelPlanSnapshot ? plannerFuelSourceLabel(fuelPlanSnapshot.source) : 'Enter a comfortable range between 40 and 400 miles.'}{fuelPlanSnapshot?.bikeLabel ? ` · ${fuelPlanSnapshot.bikeLabel}` : ''}. This stays private to you.</small>
+            <div className="ksu-field-grid">
+              <TextInput inputMode="numeric" label="Comfortable range" onChange={(event) => { setFuelRangeMiles(event.target.value.replace(/\D/g, '').slice(0, 3)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} suffix="mi" value={fuelRangeMiles} />
+              <TextInput inputMode="numeric" label="Keep in reserve" onChange={(event) => { setFuelReservePercent(event.target.value.replace(/\D/g, '').slice(0, 2)); setFuelSource(selectedBikeId === 'manual' ? 'manual' : 'route_override'); }} suffix="%" value={fuelReservePercent} />
+            </div>
+            {smartStops ? smartStops.length ? (
+              <ol className="smart-stop-list">
+                {smartStops.map((mile, index) => (
+                  <li key={mile}>
+                    <StampChip label={`Fuel window ${index + 1}`} tone="brass" />
+                    <span>Start looking near mile {Math.max(1, mile - 15)} · aim to fuel by mile {mile}</span>
+                    <button className="text-button" disabled={points.length >= 27} onClick={() => addFuelStop(mile)} type="button">Add fuel stop near this window</button>
+                  </li>
+                ))}
+              </ol>
+            ) : <small>This ride fits inside your current range plan.</small> : <small>Preview the route to build stop windows.</small>}
+          </section>
         </aside>
-        <div className="map-canvas route-preview-canvas">
+        <div className="map-canvas route-preview-canvas ksu-map-frame">
           <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={actions.addMapPoint} onPointMoved={actions.moveMapPoint} onPointSelected={actions.selectPoint} points={mapMarkersFor(points, editor.selectedPointId)} routePoints={plottedPoints} selectedPointId={editor.selectedPointId} showTraffic={showTraffic} />
+          <RouteMapPalette clearLabel="Clear" editor={editor} onClear={clearRoute} />
         </div>
       </div>
       <section className="planner-action-rail" aria-labelledby="planner-action-rail-title">

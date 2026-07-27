@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { PremiumMark, RibbonRule, ScreenTitle, StampChip, buttonClass } from '../design/day-kit';
 import { useAuth } from './auth/auth-context';
 import { listMyTrips, type TripListRow } from './trip-repository';
 
@@ -36,21 +37,57 @@ export function TripListPage() {
   }, [refreshKey]);
 
   return (
-    <section className="tool-page route-library-page">
-      <header className="tool-header">
-        <div><p className="kicker">KSU TRIPS</p><h1>The multi-day rides you lead.</h1><p>Plan every day on the big screen. Riders see the whole thing on their phones — no app update needed.</p></div>
-        <div className="route-header-actions"><Link className="primary-button" to="/app/trips/new">Plan a trip</Link></div>
-      </header>
-      {error ? <div className="route-state error"><p>{error}</p><button className="secondary-button" onClick={() => setRefreshKey((value) => value + 1)} type="button">Try again</button></div> : null}
-      {loading ? <div className="route-state"><p>Loading your trips…</p></div> : null}
-      {!loading && !error && trips.length === 0 ? <div className="route-state"><h2>No trips on this account yet.</h2><p>A trip is one ride that spans days — dates and staging first, then a day-by-day plan riders follow on their phones.</p><Link className="primary-button" to="/app/trips/new">Plan your first trip</Link></div> : null}
-      {!loading && trips.length ? <div className="route-library-grid rides-grid">{trips.map((trip) => <article className="library-route-card" key={trip.id}>
-        <div className="route-card-heading"><div><span>trip · {trip.status}{trip.createdBy && userId && trip.createdBy !== userId ? ' · riding, not leading' : ''}</span><h2>{trip.title}</h2></div></div>
-        <div className="ride-when"><strong>{rangeLabel(trip)}</strong>{trip.stagingDisplayName ? <span>Staging: {trip.stagingDisplayName}</span> : null}</div>
-        <div className="button-row ride-actions">
-          <Link className="primary-button" to={`/app/trips/${trip.id}`}>Open the day plan</Link>
+    <section className="tool-page ksu-day ksu-page">
+      <header className="ksu-page-head">
+        {/* PremiumMark rule 1: the mark sits on the ENTRY POINT to the premium
+            capability — this page — and nowhere else on it. */}
+        <ScreenTitle eyebrow={<>KSU Trips <PremiumMark /></>} title="The multi-day rides you lead.">
+          Plan every day on the big screen. Riders see the whole thing on their phones — no app update needed.
+        </ScreenTitle>
+        <div className="ksu-page-head-actions">
+          <Link className={buttonClass('primary')} to="/app/trips/new">Plan a trip</Link>
         </div>
-      </article>)}</div> : null}
+      </header>
+
+      {error ? (
+        <div className="ksu-empty">
+          <p className="ksu-empty-copy">{error}</p>
+          <button className={buttonClass('secondary')} onClick={() => setRefreshKey((value) => value + 1)} type="button">Try again</button>
+        </div>
+      ) : null}
+      {loading ? <div className="ksu-empty"><p className="ksu-empty-copy">Loading your trips…</p></div> : null}
+      {!loading && !error && trips.length === 0 ? (
+        <div className="ksu-empty">
+          <h2>No trips on this account yet.</h2>
+          <p className="ksu-empty-copy">A trip is one ride that spans days — dates and staging first, then a day-by-day plan riders follow on their phones.</p>
+          <Link className={buttonClass('primary')} to="/app/trips/new">Plan your first trip</Link>
+        </div>
+      ) : null}
+
+      {!loading && trips.length ? (
+        <>
+          <RibbonRule label={`${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}`} />
+          <div className="ksu-card-grid">
+            {trips.map((trip) => {
+              const riding = Boolean(trip.createdBy && userId && trip.createdBy !== userId);
+              return (
+                <article className="ksu-trip-card" key={trip.id}>
+                  <div className="ksu-trip-card-chips">
+                    <StampChip label={trip.status} tone={trip.status === 'scheduled' ? 'moss' : 'brass'} />
+                    {riding ? <StampChip label="Riding, not leading" /> : null}
+                  </div>
+                  <h2 className="ksu-trip-card-title">{trip.title}</h2>
+                  <dl className="ksu-trip-card-facts">
+                    <div><dt>When</dt><dd>{rangeLabel(trip)}</dd></div>
+                    {trip.stagingDisplayName ? <div><dt>Staging</dt><dd>{trip.stagingDisplayName}</dd></div> : null}
+                  </dl>
+                  <Link className={buttonClass('primary')} to={`/app/trips/${trip.id}`}>Open the day plan</Link>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

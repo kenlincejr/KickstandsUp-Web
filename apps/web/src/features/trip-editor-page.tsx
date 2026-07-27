@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { hasAccountCapability } from '@ksu/contracts';
+import { Button, Notice, RibbonRule, ScreenTitle, StampChip, TextArea, TextInput, Toggle, buttonClass } from '../design/day-kit';
+import { SummaryBar, Toolbar, ToolbarAction } from '../design/control-language';
+import { RouteMapPalette } from './route-map-palette';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
 import { createRouteLegDraft, mapMarkersFor, type RouteLegDraft } from './route-leg-editor-core';
@@ -33,6 +36,7 @@ import {
   getTripRideMeta,
   setTripDates,
   setTripLegs,
+  tripDayCount,
   tripDayHeading,
   tripLegDistanceLabel,
   tripLegOvernightLabel,
@@ -78,10 +82,15 @@ function summaryLeg(day: TripDayDraft, index: number): TripLeg {
 export function TripEditorPage() {
   const { rideId } = useParams<{ rideId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const { snapshot } = useCapabilities();
   const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [meta, setMeta] = useState<{ title: string; status: string; staging: { latitude: number; longitude: number } | null; stagingName: string | null; createdBy: string | null } | null>(null);
+  // Why the meta read failed, when it failed — distinct from "loaded, and you
+  // are not the coordinator". Never conflate the two in the UI.
+  const [metaUnreadable, setMetaUnreadable] = useState<string | null>(null);
   const [days, setDays] = useState<TripDayDraft[]>([]);
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [startLocal, setStartLocal] = useState('');
@@ -115,6 +124,11 @@ export function TripEditorPage() {
   // Only the coordinator edits — a joined rider gets the read surface, never a
   // form that 42501s at the last click. Fails CLOSED: no meta, no created_by,
   // or no session user all read as not-coordinator; the server still enforces.
+  // But failing closed is not licence to LIE about why: when the meta read
+  // itself failed we know nothing about who owns this trip, so that state is
+  // tracked separately and gets its own copy. Telling the trip's own creator
+  // "only the rider who created this trip can change it" is how this surface
+  // shipped broken.
   const isCoordinator = Boolean(meta?.createdBy && user?.id && meta.createdBy === user.id);
   const editable = projectionEditable && statusEditable && !terminalLock && isCoordinator;
 
@@ -155,12 +169,13 @@ export function TripEditorPage() {
         return;
       }
       setTrip(loaded);
-      setMeta(rideMeta ? {
-        title: rideMeta.title,
-        status: rideMeta.status,
-        staging: rideMeta.stagingLatitude !== null && rideMeta.stagingLongitude !== null ? { latitude: rideMeta.stagingLatitude, longitude: rideMeta.stagingLongitude } : null,
-        stagingName: rideMeta.stagingDisplayName,
-        createdBy: rideMeta.createdBy,
+      setMetaUnreadable(rideMeta.state === 'unreadable' ? rideMeta.reason : null);
+      setMeta(rideMeta.state === 'loaded' ? {
+        title: rideMeta.meta.title,
+        status: rideMeta.meta.status,
+        staging: rideMeta.meta.stagingLatitude !== null && rideMeta.meta.stagingLongitude !== null ? { latitude: rideMeta.meta.stagingLatitude, longitude: rideMeta.meta.stagingLongitude } : null,
+        stagingName: rideMeta.meta.stagingDisplayName,
+        createdBy: rideMeta.meta.createdBy,
       } : null);
       const loadedDays = loaded.legs.map(legToDay);
       setDays(loadedDays);
@@ -422,58 +437,75 @@ export function TripEditorPage() {
     }
   };
 
-  if (loading) return <section className="tool-page">Loading the trip…</section>;
+  if (loading) return <section className="tool-page ksu-day ksu-page">Loading the trip…</section>;
   if (pageError && !trip) {
-    return <section className="tool-page locked-feature"><p className="kicker">KSU TRIPS</p><h1>{pageError}</h1><Link className="secondary-button" to="/app/trips">Back to trips</Link></section>;
+    return (
+      <section className="tool-page ksu-day ksu-page">
+        <ScreenTitle eyebrow="KSU Trips" title={pageError} />
+        <Link className={buttonClass('secondary')} to="/app/trips">Back to trips</Link>
+      </section>
+    );
   }
   if (!trip) return null;
 
   const summaries = days.map(summaryLeg);
   const totalMiles = tripTotalMiles(summaries);
-  const dayWord = days.length === 1 ? 'day' : 'days';
-  const openSummary = openIndex >= 0 ? summaries[openIndex] : null;
+  // Legs are authoritative once authored; before that the calendar span is the
+  // honest answer. Printing days.length here is what rendered "Aug 1 – Aug 3 ·
+  // 0 days" on a trip whose dates the rider had already set.
+  // `days` is the live editable mirror of trip.legs, so it wins when non-empty;
+  // otherwise defer to the helper for the date-span fallback rather than
+  // re-deriving it here ("Do not 'improve' this" — see tripDayCount).
+  const dayCount = days.length || tripDayCount(trip);
+  const dayWord = dayCount === 1 ? 'day' : 'days';
   const mapPoints = openDay && !openDay.restDay ? mapMarkersFor(editor.draft.points, editor.selectedPointId) : [];
   const plotted = openDay && !openDay.restDay
     ? (editor.freshPreview ? decodePolyline(editor.draft.preview!.encodedPolyline) : editor.definition?.waypoints ?? [])
     : [];
 
-  return (
-    <section className="tool-page planner-page">
-      <header className="tool-header trip-editor-header">
-        <div>
-          <p className="kicker">KSU TRIP PLAN</p>
-          <h1>{meta?.title ?? 'Trip'}</h1>
-          <p>
-            {new Date(trip.departureAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} – {new Date(trip.expectedEndAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-            {' · '}{days.length} {dayWord}
-            {totalMiles !== null ? ` · ${totalMiles} planned mi` : ''}
-            {dirty ? ' · unsaved changes' : ''}
-            {dailyRemaining !== null && dailyRemaining < 10 ? ` · ${dailyRemaining} road previews left today` : ''}
-          </p>
-        </div>
-        <div className="route-header-actions">
-          <div className="button-row">
-            <Link className="secondary-button" onClick={(event) => { if (dirty && !window.confirm('Leave without saving? Your unsaved day plan will be lost.')) event.preventDefault(); }} to="/app/trips">All trips</Link>
-            <button className="primary-button" disabled={!editable || savingTrip || !dirty} onClick={() => void saveTrip()} type="button">{savingTrip ? 'Saving…' : 'Save the plan'}</button>
-          </div>
-          {editable ? <details className="planner-help-menu">
-            <summary>Change dates</summary>
-            <label><span>Rolling out</span><input onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} /></label>
-            <label><span>Back home by</span><input onChange={(event) => setEndLocal(event.target.value)} type="datetime-local" value={endLocal} /></label>
-            <small>Dates save with the plan. Days are validated against them.</small>
-          </details> : null}
-        </div>
-      </header>
-      {!projectionEditable ? <div className="planner-notice" role="status">Access check is {snapshot.projectionState === 'stale' ? 'stale' : 'unavailable'}. You can read this trip; new edits and route previews are paused until KSU reconnects.</div> : null}
-      {!isCoordinator ? <div className="planner-notice" role="status">Only the rider who created this trip can change it. You’re viewing the plan.</div> : null}
-      {!statusEditable || terminalLock ? <div className="planner-notice" role="status">This trip has already started or been closed, so the plan is locked. Riders can still see it.</div> : null}
-      {pageError ? <div className="planner-notice error" role="alert">{pageError}</div> : null}
-      {notice ? <div className="planner-notice success" role="status">{notice}</div> : null}
-      {departuresOutOfOrder ? <div className="planner-notice" role="status">Departure times are out of order — the plan saves in time order, so the day list will renumber.</div> : null}
-      {issues.length ? <div className="planner-notice error" role="alert"><b>Fix these before saving:</b><ul>{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div> : null}
+  const summaryLine = `Itinerary · ${dayCount} ${dayWord}${totalMiles !== null ? ` · ${totalMiles} mi` : ''}${dirty ? ' · unsaved' : ''}`;
 
-      <div className="planner-grid">
-        <aside className="planner-panel">
+  return (
+    <section className="ksu-day ksu-tool">
+      <Toolbar
+        lead={<ToolbarAction onClick={() => { if (!dirty || window.confirm('Leave without saving? Your unsaved day plan will be lost.')) navigate('/app/trips'); }} side="lead">All trips</ToolbarAction>}
+        meta={<>
+          {new Date(trip.departureAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} – {new Date(trip.expectedEndAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+          {' · '}{dayCount} {dayWord}
+          {totalMiles !== null ? ` · ${totalMiles} planned mi` : ''}
+          {dirty ? ' · unsaved changes' : ''}
+          {dailyRemaining !== null && dailyRemaining < 10 ? ` · ${dailyRemaining} road previews left today` : ''}
+        </>}
+        title={meta?.title ?? 'Trip'}
+        trail={<ToolbarAction disabled={!editable || savingTrip || !dirty} onClick={() => void saveTrip()} side="trail">{savingTrip ? 'Saving…' : 'Save the plan'}</ToolbarAction>}
+      />
+      <div className="ksu-tool-body">
+        <div className="ksu-tool-notices">
+          {!projectionEditable ? <Notice>Access check is {snapshot.projectionState === 'stale' ? 'stale' : 'unavailable'}. You can read this trip; new edits and route previews are paused until KSU reconnects.</Notice> : null}
+          {metaUnreadable ? <Notice tone="error">KSU couldn’t confirm who owns this trip, so editing is paused. The plan below is safe to read. Reload to try again.</Notice> : null}
+          {!metaUnreadable && !isCoordinator ? <Notice>Only the rider who created this trip can change it. You’re viewing the plan.</Notice> : null}
+          {!statusEditable || terminalLock ? <Notice>This trip has already started or been closed, so the plan is locked. Riders can still see it.</Notice> : null}
+          {pageError ? <Notice tone="error">{pageError}</Notice> : null}
+          {notice ? <Notice tone="success">{notice}</Notice> : null}
+          {departuresOutOfOrder ? <Notice>Departure times are out of order — the plan saves in time order, so the day list will renumber.</Notice> : null}
+          {issues.length ? <Notice tone="error"><b>Fix these before saving:</b><ul>{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></Notice> : null}
+        </div>
+
+        {editable ? (
+          <details className="ksu-disclosure">
+            <summary>Change the trip dates</summary>
+            <div className="ksu-disclosure-body">
+              <div className="ksu-field-grid">
+                <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
+                <TextInput label="Back home by" onChange={(event) => setEndLocal(event.target.value)} type="datetime-local" value={endLocal} />
+              </div>
+              <small className="ksu-field-hint">Dates save with the plan. Days are validated against them.</small>
+            </div>
+          </details>
+        ) : null}
+
+        <div className="ksu-split">
+          <aside className="ksu-split-panel">
           {editable && hasAccountCapability(snapshot, 'ai.route_assist') ? (
             <AutopilotPanel
               hasExistingDays={days.length > 0}
@@ -488,7 +520,8 @@ export function TripEditorPage() {
               tripExpectedEndAt={currentEnd || trip.expectedEndAt}
             />
           ) : null}
-          <ol className="planner-stop-list trip-day-list">
+          <RibbonRule label={days.length ? `${days.length} ${dayWord}` : 'Day plan'} />
+          <ol className="ksu-day-list">
             {days.map((day, index) => {
               const summary = summaries[index];
               const isOpen = day.id === openDayId;
@@ -496,59 +529,85 @@ export function TripEditorPage() {
               const route = day.restDay ? 'Rest day' : tripLegRouteLabel(summary);
               const distance = tripLegDistanceLabel(summary);
               const overnight = tripLegOvernightLabel(summary);
+              const planned = day.restDay || Boolean(route);
               return (
-                <li className={`waypoint-row trip-day-row ${isOpen ? 'selected' : ''}`} key={day.id}>
-                  <div className="stop-editor">
-                    <button className="trip-day-summary" onClick={() => isOpen ? closeDayEditor() : openDayEditor(day.id)} type="button" aria-expanded={isOpen}>
-                      <b>{heading}</b>
-                      <span>{route ?? 'No stops yet'}</span>
-                      {distance ? <small>{distance}</small> : null}
-                      {overnight ? <small>{overnight}</small> : null}
+                <li className={`ksu-day-card ${isOpen ? 'open' : ''}`} key={day.id}>
+                  <div className="ksu-day-card-head">
+                    <button aria-expanded={isOpen} className="ksu-day-trigger" onClick={() => isOpen ? closeDayEditor() : openDayEditor(day.id)} type="button">
+                      <span className="ksu-day-ordinal">{index + 1}</span>
+                      <span className="ksu-day-copy">
+                        <b>{heading}</b>
+                        <span>{route ?? 'No stops yet'}</span>
+                        <span className="ksu-day-chips">
+                          <StampChip label={planned ? 'Planned' : 'Needs a route'} tone={planned ? 'moss' : 'rust'} />
+                          {distance ? <StampChip label={distance} /> : null}
+                          {overnight ? <StampChip label={overnight} tone="brass" /> : null}
+                        </span>
+                      </span>
+                      <span aria-hidden="true" className="ksu-summary-caret">▼</span>
                     </button>
-                    {isOpen ? <div className="trip-day-editor">
-                      <label><span>Day title (optional)</span><input disabled={!editable} maxLength={TRIP_LIMITS.titleMax} onChange={(event) => patchDay(day.id, { title: event.target.value })} value={day.title} /></label>
-                      <label><span>Departure</span><input disabled={!editable} onChange={(event) => patchDay(day.id, { departAt: fromLocalInput(event.target.value) })} type="datetime-local" value={day.departAt ? toLocalInput(day.departAt) : ''} /></label>
-                      <label><span>Target arrival (optional)</span><input disabled={!editable} onChange={(event) => patchDay(day.id, { arriveBy: event.target.value ? fromLocalInput(event.target.value) : '' })} type="datetime-local" value={day.arriveBy ? toLocalInput(day.arriveBy) : ''} /></label>
-                      <small>A soft target for the day. KSU never tracks or enforces it.</small>
-                      <label><input checked={day.restDay} disabled={!editable} onChange={(event) => patchDay(day.id, { restDay: event.target.checked })} type="checkbox" /> Mark as a rest day (no riding, no stops)</label>
-                      {!day.restDay ? <>
-                        {editable ? <>
-                          {(editor.error ?? editor.hint) ? <div className="planner-notice error" role="alert">{editor.error ?? editor.hint}</div> : null}
-                          <RouteLegEditor editor={editor} />
-                          <div className="button-row">
-                            <button className="secondary-button" disabled={!editor.previewReady || editor.busy !== null || (Boolean(editor.draft.preview) && !editor.draft.previewStale)} onClick={() => void runDayPreview()} type="button">{editor.busy === 'preview' ? 'Calculating…' : editor.draft.previewStale ? 'Preview updated road' : editor.draft.preview ? 'Road previewed' : 'Preview this day’s road'}</button>
-                            <button className="secondary-button" disabled={!editor.freshPreview || editor.busy !== null} onClick={() => void editor.runSave()} type="button">{editor.busy === 'save' ? 'Saving…' : editor.draft.saved ? `Saved revision ${editor.draft.saved.revisionNumber}` : 'Save this day’s route'}</button>
-                          </div>
-                          <small>Saving the route stores the day’s road shape to My routes. It does not save the trip.</small>
-                        </> : <p>{tripLegRouteLabel(summary) ?? 'No stops on this day.'}</p>}
-                      </> : null}
-                      <fieldset className="route-options"><legend>OVERNIGHT</legend>
-                        <label><span>Where you’re staying</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingNameMax} onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })} placeholder={lodgingPlaceholder?.dayId === day.id ? lodgingPlaceholder.placeName : undefined} value={day.lodgingName} /></label>
-                        {!day.lodgingName.trim() && (day.checkInAt || day.checkOutAt) ? <small>Add a name and your check-in times show on riders’ cards.</small> : null}
-                        <label><span>Address</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingAddressMax} onChange={(event) => patchDay(day.id, { lodgingAddress: event.target.value })} value={day.lodgingAddress} /></label>
-                        <label><span>Booking link</span><input disabled={!editable} maxLength={TRIP_LIMITS.bookingUrlMax} onChange={(event) => patchDay(day.id, { bookingUrl: event.target.value })} placeholder="https://" value={day.bookingUrl} /></label>
-                        <small>Riders tap this to book their own room. KSU doesn’t book anything and never sees a reservation.</small>
-                        <label><span>Check-in</span><input disabled={!editable} onChange={(event) => patchDay(day.id, { checkInAt: event.target.value })} type="datetime-local" value={day.checkInAt} /></label>
-                        <label><span>Check-out</span><input disabled={!editable} onChange={(event) => patchDay(day.id, { checkOutAt: event.target.value })} type="datetime-local" value={day.checkOutAt} /></label>
-                      </fieldset>
-                      <label><span>Notes for the roster</span><textarea disabled={!editable} maxLength={TRIP_LIMITS.notesMax} onChange={(event) => patchDay(day.id, { notes: event.target.value })} value={day.notes} /></label>
-                    </div> : null}
+                    {editable ? (
+                      <div className="ksu-day-actions">
+                        <button aria-label={`Move day ${index + 1} earlier`} disabled={index === 0} onClick={() => moveDay(day.id, -1)} type="button">↑</button>
+                        <button aria-label={`Move day ${index + 1} later`} disabled={index === days.length - 1} onClick={() => moveDay(day.id, 1)} type="button">↓</button>
+                        <button aria-label={`Remove day ${index + 1}`} className="danger" onClick={() => removeDay(day.id)} type="button">×</button>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="stop-actions">
-                    {editable ? <>
-                      <button aria-label={`Move day ${index + 1} earlier`} disabled={index === 0} onClick={() => moveDay(day.id, -1)} type="button">↑</button>
-                      <button aria-label={`Move day ${index + 1} later`} disabled={index === days.length - 1} onClick={() => moveDay(day.id, 1)} type="button">↓</button>
-                      <button aria-label={`Remove day ${index + 1}`} onClick={() => removeDay(day.id)} type="button">×</button>
-                    </> : null}
-                  </div>
+                  {isOpen ? (
+                    <div className="ksu-day-body">
+                      <TextInput disabled={!editable} label="Day title (optional)" maxLength={TRIP_LIMITS.titleMax} onChange={(event) => patchDay(day.id, { title: event.target.value })} value={day.title} />
+                      <div className="ksu-field-grid">
+                        <TextInput disabled={!editable} label="Departure" onChange={(event) => patchDay(day.id, { departAt: fromLocalInput(event.target.value) })} type="datetime-local" value={day.departAt ? toLocalInput(day.departAt) : ''} />
+                        <TextInput disabled={!editable} hint="A soft target. KSU never tracks or enforces it." label="Target arrival (optional)" onChange={(event) => patchDay(day.id, { arriveBy: event.target.value ? fromLocalInput(event.target.value) : '' })} type="datetime-local" value={day.arriveBy ? toLocalInput(day.arriveBy) : ''} />
+                      </div>
+                      <Toggle checked={day.restDay} disabled={!editable} hint="No riding, no stops." label="Rest day" onChange={(checked) => patchDay(day.id, { restDay: checked })} />
+                      {!day.restDay ? (
+                        editable ? (
+                          <>
+                            <RibbonRule label="The road" />
+                            {(editor.error ?? editor.hint) ? <Notice tone="error">{editor.error ?? editor.hint}</Notice> : null}
+                            <RouteLegEditor editor={editor} />
+                            <div className="ksu-row">
+                              <Button disabled={!editor.previewReady || editor.busy !== null || (Boolean(editor.draft.preview) && !editor.draft.previewStale)} onClick={() => void runDayPreview()} variant="primary">{editor.busy === 'preview' ? 'Calculating…' : editor.draft.previewStale ? 'Preview updated road' : editor.draft.preview ? 'Road previewed' : 'Preview this day’s road'}</Button>
+                              <Button disabled={!editor.freshPreview || editor.busy !== null} onClick={() => void editor.runSave()}>{editor.busy === 'save' ? 'Saving…' : editor.draft.saved ? `Saved revision ${editor.draft.saved.revisionNumber}` : 'Save this day’s route'}</Button>
+                            </div>
+                            <small className="ksu-field-hint">Saving the route stores the day’s road shape to My routes. It does not save the trip.</small>
+                          </>
+                        ) : <p className="ksu-field-hint">{tripLegRouteLabel(summary) ?? 'No stops on this day.'}</p>
+                      ) : null}
+                      <RibbonRule label="Overnight" />
+                      <TextInput
+                        disabled={!editable}
+                        hint={!day.lodgingName.trim() && (day.checkInAt || day.checkOutAt) ? 'Add a name and your check-in times show on riders’ cards.' : undefined}
+                        label="Where you’re staying"
+                        maxLength={TRIP_LIMITS.lodgingNameMax}
+                        onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })}
+                        placeholder={lodgingPlaceholder?.dayId === day.id ? lodgingPlaceholder.placeName : undefined}
+                        value={day.lodgingName}
+                      />
+                      <TextInput disabled={!editable} label="Address" maxLength={TRIP_LIMITS.lodgingAddressMax} onChange={(event) => patchDay(day.id, { lodgingAddress: event.target.value })} value={day.lodgingAddress} />
+                      <TextInput disabled={!editable} hint="Riders tap this to book their own room. KSU doesn’t book anything and never sees a reservation." label="Booking link" maxLength={TRIP_LIMITS.bookingUrlMax} onChange={(event) => patchDay(day.id, { bookingUrl: event.target.value })} placeholder="https://" value={day.bookingUrl} />
+                      <div className="ksu-field-grid">
+                        <TextInput disabled={!editable} label="Check-in" onChange={(event) => patchDay(day.id, { checkInAt: event.target.value })} type="datetime-local" value={day.checkInAt} />
+                        <TextInput disabled={!editable} label="Check-out" onChange={(event) => patchDay(day.id, { checkOutAt: event.target.value })} type="datetime-local" value={day.checkOutAt} />
+                      </div>
+                      <TextArea disabled={!editable} label="Notes for the roster" maxLength={TRIP_LIMITS.notesMax} onChange={(event) => patchDay(day.id, { notes: event.target.value })} value={day.notes} />
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
           </ol>
-          {days.length === 0 ? <div className="route-state"><h2>The day-by-day plan isn’t posted yet.</h2><p>Riders already see the dates. Add Day 1 to put the first route on their phones.</p></div> : null}
-          {editable ? <button className="secondary-button" disabled={days.length >= TRIP_LIMITS.maxDays} onClick={addDay} type="button">＋ Add a day</button> : null}
+          {days.length === 0 ? (
+            <div className="ksu-empty">
+              <h2>The day-by-day plan isn’t posted yet.</h2>
+              <p className="ksu-empty-copy">Riders already see the dates. Add Day 1 to put the first route on their phones.</p>
+            </div>
+          ) : null}
+          {editable ? <Button block disabled={days.length >= TRIP_LIMITS.maxDays} onClick={addDay}>＋ Add a day</Button> : null}
         </aside>
-        <div className="map-canvas route-preview-canvas">
+        <div className="ksu-map-frame">
           <GoogleRouteMap
             apiKey={publicEnv.googleMapsBrowserKey}
             mapId={publicEnv.googleMapId}
@@ -560,10 +619,27 @@ export function TripEditorPage() {
             selectedPointId={editor.selectedPointId}
             showTraffic={false}
           />
+          {editable && openDay && !openDay.restDay ? <RouteMapPalette editor={editor} /> : null}
+          {editor.error ? <p className="ksu-map-strip">{editor.error}</p> : null}
         </div>
+        </div>
+
+        {/* The collapsible itinerary bar from the phone: one cream strip that
+            says what the plan currently is, and opens the day roll-up. */}
+        <SummaryBar controlsId="trip-itinerary" onToggle={() => setSummaryOpen((open) => !open)} open={summaryOpen} summary={summaryLine}>
+          <ol className="ksu-summary-list">
+            {summaries.map((leg, index) => (
+              <li key={leg.id}>
+                <b>{tripDayHeading(leg)}</b>
+                <span>{days[index]?.restDay ? 'Rest day' : tripLegRouteLabel(leg) ?? 'No stops yet'}</span>
+                {tripLegDistanceLabel(leg) ? <StampChip label={tripLegDistanceLabel(leg)!} /> : null}
+              </li>
+            ))}
+            {summaries.length === 0 ? <li><span>No days yet.</span></li> : null}
+          </ol>
+        </SummaryBar>
       </div>
-      {openSummary && openDay && !openDay.restDay ? null : null}
-      {editor.busy === 'place' ? <div className="planner-busy" aria-live="polite">Resolving place…</div> : null}
+      {editor.busy === 'place' ? <div className="ksu-busy" aria-live="polite">Resolving place…</div> : null}
     </section>
   );
 }

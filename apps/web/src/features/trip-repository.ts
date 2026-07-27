@@ -298,22 +298,59 @@ export type TripRideMeta = {
   createdBy: string | null;
 };
 
-/** The parent ride row: title, status, and the staging pin the origin chain falls back to. */
-export async function getTripRideMeta(rideId: string): Promise<TripRideMeta | null> {
-  const { data, error } = await clientOrThrow()
-    .from('rides')
-    .select('id,title,status,staging_display_name,staging_latitude,staging_longitude,created_by')
-    .eq('id', rideId)
-    .maybeSingle();
-  if (error || !data || typeof data.id !== 'string') return null;
+/**
+ * Loaded, or a named reason we could not read it. NOT `TripRideMeta | null`:
+ * a null collapses "the read failed" into "you are not the coordinator", and
+ * the editor then asserts a false fact about the rider — which is exactly the
+ * bug this type replaces. Callers must branch on `state`.
+ */
+export type TripRideMetaResult =
+  | { state: 'loaded'; meta: TripRideMeta }
+  | { state: 'unreadable'; reason: string };
+
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+/**
+ * The parent ride row: title, status, created_by, and the staging pin the
+ * origin chain falls back to.
+ *
+ * RPC-first, and it has to be. This was a direct
+ * `.from('rides').select(…,staging_latitude,staging_longitude,…)`, but those
+ * are NOT columns — `public.rides` stores the pin as
+ * `staging_point extensions.geography(Point,4326)`
+ * (20260712000000_initial_ksu_schema.sql:78) and every `staging_latitude` in
+ * the migration tree is an RPC *parameter* fed to st_makepoint. PostgREST
+ * failed the whole row with 42703 for every caller on every trip; the old
+ * `return null` swallowed it; the editor then told the trip's own creator that
+ * only its creator could edit it. A geography column has no useful PostgREST
+ * projection, so `get_trip_ride_meta` (20260730170000) does the st_x/st_y
+ * projection server-side, behind the same authorization as get_ride_trip.
+ *
+ * Never reach for the table select again — it cannot return the coordinates,
+ * and Autopilot's day 1 has no origin without them.
+ */
+export async function getTripRideMeta(rideId: string): Promise<TripRideMetaResult> {
+  const { data, error } = await clientOrThrow().rpc('get_trip_ride_meta', { target_ride_id: rideId });
+  // Every failure is reported as unreadable, never as an absent coordinator:
+  // 28000 (no session), 42501 (not on this roster) and a missing function all
+  // mean "we could not verify", which is not the same claim as "you are not
+  // the owner" and must not be rendered as one.
+  if (error) return { state: 'unreadable', reason: error.message };
+  if (!data || typeof data !== 'object') return { state: 'unreadable', reason: 'This ride isn’t a multi-day trip.' };
+  const row = data as Record<string, unknown>;
+  if (typeof row.rideId !== 'string') return { state: 'unreadable', reason: 'Trip not found.' };
   return {
-    id: data.id,
-    title: typeof data.title === 'string' && data.title.trim() ? data.title : 'KSU trip',
-    status: typeof data.status === 'string' ? data.status : 'scheduled',
-    stagingDisplayName: typeof data.staging_display_name === 'string' ? data.staging_display_name : null,
-    stagingLatitude: typeof data.staging_latitude === 'number' && Number.isFinite(data.staging_latitude) ? data.staging_latitude : null,
-    stagingLongitude: typeof data.staging_longitude === 'number' && Number.isFinite(data.staging_longitude) ? data.staging_longitude : null,
-    createdBy: typeof data.created_by === 'string' ? data.created_by : null,
+    state: 'loaded',
+    meta: {
+      id: row.rideId,
+      title: typeof row.title === 'string' && row.title.trim() ? row.title : 'KSU trip',
+      status: typeof row.status === 'string' ? row.status : 'scheduled',
+      stagingDisplayName: typeof row.stagingDisplayName === 'string' ? row.stagingDisplayName : null,
+      stagingLatitude: finiteOrNull(row.stagingLatitude),
+      stagingLongitude: finiteOrNull(row.stagingLongitude),
+      createdBy: typeof row.createdBy === 'string' ? row.createdBy : null,
+    },
   };
 }
 

@@ -1,0 +1,249 @@
+/* ============================================================================
+   KSU APP-SIDE PAGE SURFACES
+   The layouts the trip and planner screens are assembled from, built entirely
+   on the day-kit token layer. Kept beside day-kit.css so the whole design
+   system is two files, not scattered through the 570-line page sheet.
+   ========================================================================== */
+
+/* --- a plain padded day page (trip list, locked states) --- */
+.ksu-page { padding: var(--ksu-s-4); }
+.ksu-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ksu-s-4); margin-bottom: var(--ksu-s-4); }
+.ksu-page-head-actions { display: flex; flex-wrap: wrap; gap: var(--ksu-s-2); }
+
+/* --- a tool screen: sticky toolbar, then a scrolling body --- */
+.ksu-tool { display: flex; flex-direction: column; min-height: 100vh; background: var(--ksu-paper); color: var(--ksu-ink); }
+.ksu-tool-body { display: grid; gap: var(--ksu-s-3); padding: var(--ksu-s-3) var(--ksu-s-4) var(--ksu-s-6); }
+.ksu-tool-notices { display: grid; gap: var(--ksu-s-2); }
+.ksu-tool-notices:empty { display: none; }
+
+/* --- panel + map, the planner's two-column bones --- */
+.ksu-split { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); align-items: start; gap: var(--ksu-s-3); }
+.ksu-split-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--ksu-s-3);
+  min-width: 0;
+  padding: var(--ksu-s-3);
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+}
+.ksu-map-frame {
+  position: sticky;
+  top: 78px;
+  overflow: hidden;
+  height: 620px;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-paper-deep);
+}
+.ksu-map-frame .google-route-map { width: 100%; height: 100%; background: var(--ksu-paper-deep); }
+.ksu-map-frame .ksu-map-strip { position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; margin: 0; }
+/* When the error strip is showing it owns the foot of the map; the rail lifts
+   clear of it rather than sitting half-under it. */
+.ksu-map-frame:has(.ksu-map-strip) .ksu-palette-anchor { bottom: calc(var(--ksu-s-2) + 32px); }
+
+/* --- cards + empty states --- */
+.ksu-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--ksu-s-3); margin-top: var(--ksu-s-3); }
+.ksu-trip-card {
+  display: grid;
+  align-content: start;
+  gap: var(--ksu-s-2);
+  padding: var(--ksu-s-3);
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+}
+.ksu-trip-card-chips { display: flex; flex-wrap: wrap; gap: var(--ksu-s-1); }
+.ksu-trip-card-title { margin: 0; font-family: var(--ksu-display); font-weight: 400; font-size: 1.7rem; line-height: 1.05; }
+.ksu-trip-card-facts { display: grid; gap: var(--ksu-s-2); margin: 0 0 var(--ksu-s-2); padding: var(--ksu-s-2) 0; border-block: 1px solid var(--ksu-line); }
+.ksu-trip-card-facts div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--ksu-s-2); }
+.ksu-trip-card-facts dt { color: var(--ksu-brass); font-family: var(--ksu-display); font-weight: 400; font-size: var(--ksu-t-micro); letter-spacing: .13em; text-transform: uppercase; }
+.ksu-trip-card-facts dd { margin: 0; font-size: var(--ksu-t-small); }
+.ksu-trip-card .ksu-btn { justify-self: start; }
+
+.ksu-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--ksu-s-2);
+  max-width: 640px;
+  padding: var(--ksu-s-4);
+  border: 1px dashed var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+}
+.ksu-empty h2 { margin: 0; font-family: var(--ksu-display); font-weight: 400; font-size: var(--ksu-t-h2); }
+.ksu-empty-copy { margin: 0; color: var(--ksu-ink-soft); line-height: 1.55; }
+
+/* --- disclosure (ride fields, trip dates) --- */
+.ksu-disclosure { border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-2); background: var(--ksu-card); }
+.ksu-disclosure > summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--ksu-s-3);
+  color: var(--ksu-brass);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: var(--ksu-t-eyebrow);
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ksu-disclosure-body { display: grid; gap: var(--ksu-s-3); padding: 0 var(--ksu-s-3) var(--ksu-s-3); }
+
+/* --- place autocomplete --- */
+.ksu-place-field { position: relative; }
+.ksu-place-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--ksu-brass);
+  border-radius: var(--ksu-r-2);
+  background: var(--ksu-card);
+  box-shadow: var(--ksu-shadow-menu);
+}
+.ksu-place-results button {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--ksu-line);
+  background: transparent;
+  color: var(--ksu-ink);
+  font: inherit;
+  font-size: var(--ksu-t-body);
+  text-align: left;
+  cursor: pointer;
+}
+.ksu-place-results button:last-child { border-bottom: 0; }
+.ksu-place-results button:hover { background: var(--ksu-paper-deep); }
+.ksu-place-results small { color: var(--ksu-ink-soft); font-size: var(--ksu-t-micro); }
+
+/* --- the trip day list --- */
+.ksu-day-list { display: grid; gap: var(--ksu-s-2); margin: 0; padding: 0; list-style: none; }
+.ksu-day-card { overflow: hidden; border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-3); background: var(--ksu-card); }
+.ksu-day-card.open { border-color: var(--ksu-brass); box-shadow: inset 0 0 0 1px var(--ksu-brass-wash); }
+.ksu-day-card-head { display: flex; align-items: stretch; gap: var(--ksu-s-1); }
+.ksu-day-trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ksu-s-2);
+  padding: var(--ksu-s-2);
+  border: 0;
+  background: transparent;
+  color: var(--ksu-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ksu-day-trigger:hover { background: var(--ksu-paper-deep); }
+.ksu-day-trigger[aria-expanded="true"] .ksu-summary-caret { transform: rotate(180deg); }
+.ksu-day-ordinal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ksu-r-pill);
+  background: var(--ksu-rust);
+  color: var(--ksu-on-rust);
+  font-family: var(--ksu-display);
+  font-weight: 400;
+  font-size: .95rem;
+}
+.ksu-day-copy { display: grid; gap: 3px; min-width: 0; }
+.ksu-day-copy b { font-size: var(--ksu-t-body); }
+.ksu-day-copy > span { color: var(--ksu-ink-soft); font-size: var(--ksu-t-small); overflow-wrap: anywhere; }
+.ksu-day-chips { display: flex; flex-wrap: wrap; gap: var(--ksu-s-1); margin-top: 2px; }
+.ksu-day-actions { display: flex; align-items: center; gap: 2px; padding-right: var(--ksu-s-2); }
+.ksu-day-actions button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-1);
+  background: var(--ksu-card);
+  color: var(--ksu-ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.ksu-day-actions button:hover:not(:disabled) { border-color: var(--ksu-brass); color: var(--ksu-ink); }
+.ksu-day-actions button.danger:hover:not(:disabled) { border-color: var(--ksu-rust); color: var(--ksu-rust); }
+.ksu-day-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.ksu-day-body { display: grid; gap: var(--ksu-s-3); padding: var(--ksu-s-3); border-top: 1px solid var(--ksu-line); background: var(--ksu-paper); }
+
+/* --- the itinerary roll-up inside the summary bar --- */
+.ksu-summary-list { display: grid; gap: var(--ksu-s-2); margin: 0; padding: 0; list-style: none; }
+.ksu-summary-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ksu-s-2); padding-bottom: var(--ksu-s-2); border-bottom: 1px solid var(--ksu-line); font-size: var(--ksu-t-small); }
+.ksu-summary-list li:last-child { padding-bottom: 0; border-bottom: 0; }
+.ksu-summary-list span { color: var(--ksu-ink-soft); }
+
+/* --- autopilot --- */
+.ksu-autopilot {
+  display: grid;
+  gap: var(--ksu-s-2);
+  padding: var(--ksu-s-3);
+  border: 1px solid var(--ksu-brass);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-paper-deep);
+}
+.ksu-autopilot.collapsed { padding: var(--ksu-s-2); border-color: var(--ksu-line); background: var(--ksu-card); }
+.ksu-autopilot-lede { margin: 0; color: var(--ksu-ink-soft); font-size: var(--ksu-t-small); line-height: 1.5; }
+.ksu-autopilot-entry { display: grid; justify-items: start; gap: var(--ksu-s-1); margin-top: var(--ksu-s-2); }
+.ksu-autopilot-entry .ksu-btn-primary { justify-self: stretch; }
+.ksu-autopilot-dials { display: grid; gap: var(--ksu-s-2); padding: var(--ksu-s-3); border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-2); background: var(--ksu-card); }
+.ksu-autopilot-proposal { display: grid; gap: var(--ksu-s-2); }
+.ksu-autopilot-days { display: grid; gap: var(--ksu-s-2); margin: 0; padding: 0; list-style: none; }
+.ksu-autopilot-days li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: var(--ksu-s-2); padding: var(--ksu-s-2); border-left: 3px solid var(--ksu-brass); background: var(--ksu-card); }
+.ksu-autopilot-days b { font-size: var(--ksu-t-small); }
+.ksu-autopilot-days p { margin: 3px 0 0; color: var(--ksu-ink-soft); font-size: var(--ksu-t-small); line-height: 1.45; }
+.ksu-autopilot-days .ksu-autopilot-trade { color: var(--ksu-brass); }
+
+/* --- road preferences block (shared by planner + trip day) --- */
+.ksu-preferences { padding: var(--ksu-s-3); border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-2); background: var(--ksu-card); }
+.ksu-preferences .ksu-toggle + .ksu-toggle { border-top: 1px solid var(--ksu-line); }
+
+/* --- the busy pill --- */
+.ksu-busy {
+  position: fixed;
+  right: var(--ksu-s-4);
+  bottom: var(--ksu-s-4);
+  z-index: 50;
+  padding: 12px 16px;
+  border-radius: var(--ksu-r-2);
+  background: var(--ksu-rust);
+  color: var(--ksu-on-rust);
+  font-size: var(--ksu-t-small);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .ksu-page { padding: var(--ksu-s-3); }
+  .ksu-page-head { flex-direction: column; gap: var(--ksu-s-3); }
+  .ksu-tool-body { padding: var(--ksu-s-2) var(--ksu-s-3) var(--ksu-s-5); }
+  /* Map first, then the panel — the phone's order. `align-items: stretch` is
+     load-bearing: the desktop grid sets `start`, which in a flex COLUMN means
+     the cross axis, and would collapse the map frame to its content width. */
+  .ksu-split { display: flex; flex-direction: column; align-items: stretch; }
+  .ksu-map-frame { order: 1; position: relative; top: auto; height: 380px; }
+  .ksu-split-panel { order: 2; }
+  .ksu-card-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .ksu-page { padding: var(--ksu-s-2); }
+  .ksu-tool-body { padding: var(--ksu-s-2) var(--ksu-s-2) var(--ksu-s-5); }
+  .ksu-split-panel { padding: var(--ksu-s-2); }
+  /* Tall enough for the disc rail to sit inside the map area whole. */
+  .ksu-map-frame { height: 360px; }
+  .ksu-trip-card-facts div { grid-template-columns: 1fr; gap: 2px; }
+  .ksu-day-body { padding: var(--ksu-s-2); }
+  .ksu-busy { right: var(--ksu-s-2); bottom: var(--ksu-s-2); }
+}
