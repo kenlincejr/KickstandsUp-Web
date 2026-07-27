@@ -8,11 +8,13 @@ import {
   insertIntermediatePoint,
   mapMarkersFor,
   movePointCoordinates,
+  namePointFromReverseGeocode,
   previewMessageFor,
   removePointById,
   reorderPointList,
   resolvePointToPlace,
   setIntermediatePointKind,
+  setPointStopLabels,
   swapAdjacentPoint,
   type DraftPoint,
 } from './route-leg-editor-core';
@@ -97,5 +99,40 @@ describe('route leg editor core', () => {
     const markers = mapMarkersFor([located, unlocated], located.id);
     expect(markers).toHaveLength(1);
     expect(markers[0]).toMatchObject({ token: 'S', selected: true });
+  });
+
+  it('sets and clears stop labels, and drops them when a stop becomes a via', () => {
+    const stop = { ...resolved('stop', 'Cooper’s BBQ'), id: 'stop-1' };
+    const points = [resolved('origin', 'A'), stop, resolved('destination', 'B')];
+
+    const tagged = setPointStopLabels(points, 'stop-1', ['food', 'break']);
+    expect(tagged[1].stopLabels).toEqual(['food', 'break']);
+
+    // Empty collapses to undefined, not [], so the serializer's
+    // `stopLabels?.length` guard omits the key instead of writing an empty array.
+    expect(setPointStopLabels(tagged, 'stop-1', [])[1].stopLabels).toBeUndefined();
+
+    // A via is a road, not a place the group pulls over at.
+    expect(setIntermediatePointKind(tagged, 'stop-1', 'via')[1].stopLabels).toBeUndefined();
+    // ...and switching back to a stop does not resurrect them.
+    expect(setIntermediatePointKind(setIntermediatePointKind(tagged, 'stop-1', 'via'), 'stop-1', 'stop')[1].stopLabels).toBeUndefined();
+  });
+
+  it('applies a reverse-geocoded name only to an unmoved, unrenamed point', () => {
+    const dropped: DraftPoint = { id: 'p1', kind: 'stop', displayName: '31.06400, -98.18100', latitude: 31.064, longitude: -98.181, source: 'manual', coordinateProvenance: 'ksu_customer' };
+    const args = { latitude: 31.064, longitude: -98.181, expectedName: '31.06400, -98.18100', name: 'Cooper’s BBQ' };
+
+    expect(namePointFromReverseGeocode([dropped], 'p1', args)[0].displayName).toBe('Cooper’s BBQ');
+
+    // Dragged after the lookup went out — the name belongs to the old spot.
+    const moved = { ...dropped, latitude: 32, displayName: '32.00000, -98.18100' };
+    expect(namePointFromReverseGeocode([moved], 'p1', args)[0].displayName).toBe('32.00000, -98.18100');
+
+    // Renamed by a place search mid-flight — the async name must not clobber it.
+    const renamed = { ...dropped, displayName: 'Lampasas, TX' };
+    expect(namePointFromReverseGeocode([renamed], 'p1', args)[0].displayName).toBe('Lampasas, TX');
+
+    // Point removed while the lookup was in flight.
+    expect(namePointFromReverseGeocode([], 'p1', args)).toEqual([]);
   });
 });

@@ -10,16 +10,20 @@ import {
   droppedPinLocation,
   insertIntermediatePoint,
   movePointCoordinates,
+  namePointFromReverseGeocode,
   previewMessageFor,
   removePointById,
   reorderPointList,
   resolvePointToPlace,
   setIntermediatePointKind,
+  setPointStopLabels,
   swapAdjacentPoint,
   type DraftPoint,
   type RouteLegDraft,
 } from './route-leg-editor-core';
-import { firstIncompletePoint, placeExistingRoutePoint } from './route-point-identity';
+import { describeDroppedPin } from './place-reverse';
+import type { StopLabel } from './trip-stop-projection';
+import { firstIncompletePoint, isRoutePointComplete, placeExistingRoutePoint } from './route-point-identity';
 import type { PlannerFuelPlan } from './planner-fuel-plan';
 import {
   isCompleteDefinition,
@@ -54,6 +58,8 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [activePlacementPointId, setActivePlacementPointId] = useState<string | null>(null);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
+  /** Non-null while the palette is laying a chain of stops/vias (see beginChain). */
+  const [chainKind, setChainKind] = useState<'stop' | 'via' | null>(null);
   // Google Places session tokens are per autocomplete-then-details sequence and
   // per editor instance; sharing one across day editors misbills the account.
   const placeSession = useRef(crypto.randomUUID());
@@ -165,17 +171,78 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     setPoints((current) => insertIntermediatePoint(current, point));
   };
 
+  /**
+   * Palette entry point: arm an intermediate AND stay armed, so a rider lays a
+   * chain of stops with one click per stop instead of one click per stop plus
+   * one to re-arm. Mirrors the device, where stop/via placement deliberately
+   * does not auto-disarm (route-planner-screen.tsx:497-525). Tapping the lit
+   * disc again ends the chain.
+   */
+  const beginChain = (kind: 'stop' | 'via') => {
+    if (chainKind === kind) { endChain(); return; }
+    setChainKind(kind);
+    addIntermediate(kind);
+  };
+
+  const endChain = () => {
+    setChainKind(null);
+    // Drop the trailing blank the chain armed but the rider never placed —
+    // otherwise ending a chain leaves an incomplete point that blocks preview
+    // and reads as "S needs a location" for a stop nobody asked for.
+    setPoints((current) => {
+      const armed = current.find((point) => point.id === activePlacementPointId);
+      return armed && !isRoutePointComplete(armed) && armed.kind !== 'origin' && armed.kind !== 'destination'
+        ? removePointById(current, armed.id)
+        : [...current];
+    });
+    setActivePlacementPointId(null);
+    setSearchingPointId(null);
+  };
+
+  /** Fire-and-forget naming for a pin that just landed. Never blocks, never throws. */
+  const nameDroppedPoint = (pointId: string, latitude: number, longitude: number, placedLabel: string) => {
+    const epoch = draftEpoch.current;
+    void describeDroppedPin(latitude, longitude).then((name) => {
+      if (!name || draftEpoch.current !== epoch) return;
+      setPoints((current) => namePointFromReverseGeocode(current, pointId, { latitude, longitude, expectedName: placedLabel, name }));
+    });
+  };
+
   const addMapPoint = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
     if (!activePlacementPointId) {
       setError('Choose a route point first, then use “Place on map.” KSU will never add an unplanned waypoint from a map click.');
       return;
     }
+    const placedId = activePlacementPointId;
+    const location = droppedPinLocation({ latitude, longitude });
     markChanged();
     setSearchingPointId(null);
     setSuggestions([]);
-    setPoints((current) => placeExistingRoutePoint(current, activePlacementPointId, droppedPinLocation({ latitude, longitude })));
-    setSelectedPointId(activePlacementPointId);
-    setActivePlacementPointId(null);
+
+    // Chaining: place the armed point, then insert and arm the next one in the
+    // same update so the rider's next map click keeps building. `draft.points`
+    // is this render's list, which is the right length to test against the cap
+    // because a chain advances exactly one point per click.
+    const chaining = chainKind !== null && draft.points.length < maxPoints;
+    const next = chaining ? blankPoint(chainKind!) : null;
+    setPoints((current) => {
+      const placed = placeExistingRoutePoint(current, placedId, location);
+      return next ? insertIntermediatePoint(placed, next) : placed;
+    });
+    setSelectedPointId(next ? next.id : placedId);
+    setActivePlacementPointId(next ? next.id : null);
+    if (!chaining) setChainKind(null);
+
+    nameDroppedPoint(placedId, latitude, longitude, location.displayName);
+  };
+
+  const setStopLabels = (id: string, labels: readonly StopLabel[]) => {
+    // Purpose is metadata, not geometry: it must NOT mark the paid preview
+    // stale. The device makes the same exception deliberately
+    // (route-planner-screen.tsx:290-295) — tagging a stop "food" does not
+    // change the road, so charging the rider a fresh preview for it is wrong.
+    setPoints((current) => setPointStopLabels(current, id, labels));
+    onChangeRef.current?.();
   };
 
   const moveMapPoint = (id: string, coordinates: { latitude: number; longitude: number }) => {
@@ -271,6 +338,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     setSelectedPointId(null);
     setActivePlacementPointId(null);
     setDraggingPointId(null);
+    setChainKind(null);
     setSuggestions([]);
     setError(null);
     setHint(null);
@@ -283,6 +351,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     setDraft(next);
     setSearchingPointId(null);
     setActivePlacementPointId(null);
+    setChainKind(null);
     setSuggestions([]);
     setError(null);
     setHint(null);
@@ -301,6 +370,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     selectedPointId,
     activePlacementPointId,
     draggingPointId,
+    chainKind,
     firstIncomplete,
     previewReady,
     freshPreview,
@@ -311,6 +381,9 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
       updatePointQuery,
       choosePlace,
       addIntermediate,
+      beginChain,
+      endChain,
+      setStopLabels,
       addMapPoint,
       moveMapPoint,
       movePoint,

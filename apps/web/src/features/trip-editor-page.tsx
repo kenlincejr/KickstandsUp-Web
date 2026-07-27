@@ -4,6 +4,7 @@ import { hasAccountCapability } from '@ksu/contracts';
 import { Button, Notice, RibbonRule, ScreenTitle, StampChip, TextArea, TextInput, Toggle, buttonClass } from '../design/day-kit';
 import { SummaryBar, Toolbar, ToolbarAction } from '../design/control-language';
 import { RouteMapPalette } from './route-map-palette';
+import { MapStopCard } from './map-stop-card';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
 import { createRouteLegDraft, mapMarkersFor, type RouteLegDraft } from './route-leg-editor-core';
@@ -459,6 +460,12 @@ export function TripEditorPage() {
   const dayCount = days.length || tripDayCount(trip);
   const dayWord = dayCount === 1 ? 'day' : 'days';
   const mapPoints = openDay && !openDay.restDay ? mapMarkersFor(editor.draft.points, editor.selectedPointId) : [];
+  // Selected point for the on-map card — purpose and name edited where the
+  // rider is looking, rather than only in the day's stop list below.
+  const selectedMapPointIndex = editor.draft.points.findIndex((point) => point.id === editor.selectedPointId);
+  const selectedMapPoint = selectedMapPointIndex >= 0
+    ? { point: editor.draft.points[selectedMapPointIndex], index: selectedMapPointIndex }
+    : null;
   const plotted = openDay && !openDay.restDay
     ? (editor.freshPreview ? decodePolyline(editor.draft.preview!.encodedPolyline) : editor.definition?.waypoints ?? [])
     : [];
@@ -620,6 +627,18 @@ export function TripEditorPage() {
             showTraffic={false}
           />
           {editable && openDay && !openDay.restDay ? <RouteMapPalette editor={editor} /> : null}
+          {openDay && !openDay.restDay && selectedMapPoint ? (
+            <MapStopCard
+              canLabel
+              editable={editable}
+              index={selectedMapPoint.index}
+              onDismiss={() => editor.actions.setSelectedPointId(null)}
+              onRemove={() => editor.actions.removePoint(selectedMapPoint.point.id)}
+              onSetLabels={(labels) => editor.actions.setStopLabels(selectedMapPoint.point.id, labels)}
+              point={selectedMapPoint.point}
+              points={editor.draft.points}
+            />
+          ) : null}
           {editor.error ? <p className="ksu-map-strip">{editor.error}</p> : null}
         </div>
         </div>

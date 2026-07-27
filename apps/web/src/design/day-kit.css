@@ -391,7 +391,20 @@
 /* `Itinerary · 5 points · 54 mi · 1h 1m ⌄` — one opaque cream strip that
    opens the detail below it. */
 
-.ksu-summary { border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-3); background: var(--ksu-card); overflow: hidden; }
+/* Sticky by design. The device keeps its itinerary bar pinned over the map the
+   whole time a rider is placing points (route-focus.ts:32-48) so progress is
+   never more than a glance away; a summary that scrolls off is a summary you
+   check by scrolling, which is the bounce this bar exists to remove. */
+.ksu-summary {
+  position: sticky;
+  bottom: var(--ksu-s-2);
+  z-index: 4;
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(38, 46, 30, .16);
+}
 .ksu-summary-bar {
   width: 100%;
   display: flex;
