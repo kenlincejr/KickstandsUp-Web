@@ -126,6 +126,7 @@ type ProfileCacheEntry = { profile: RouteProfile; candidates: AnchorCandidate[] 
 
 export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, hasExistingDays, previewsUsed, previewBudget, onPreviewUsed, onDailyRemaining, onAccept, onLodgingCta }: AutopilotPanelProps) {
   const [dismissed, setDismissed] = useState(false);
+  const [relaxedPlanIssues, setRelaxedPlanIssues] = useState<TripDayIssue[]>([]);
   const [collapsed, setCollapsed] = useState(hasExistingDays);
   const [tuneOpen, setTuneOpen] = useState(false);
 
@@ -333,7 +334,17 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
 
   const useRelaxedDays = () => {
     if (!result || result.status !== 'infeasible' || !result.conflict.relaxation) return;
-    onAccept(autopilotDaysToDrafts(result.conflict.relaxation.preview, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt }));
+    const relaxedDrafts = autopilotDaysToDrafts(result.conflict.relaxation.preview, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt });
+    // Same gate as the solved path: a relaxed plan (e.g. a demoted dayCount
+    // producing a longer itinerary) can overrun the trip window too, and the
+    // accept must never hand over drafts Save would reject.
+    const relaxedIssues = validateTripDays(relaxedDrafts, { departureAt: tripDepartureAt, expectedEndAt: tripExpectedEndAt });
+    if (relaxedIssues.length) {
+      setRelaxedPlanIssues(relaxedIssues);
+      return;
+    }
+    setRelaxedPlanIssues([]);
+    onAccept(relaxedDrafts);
     setCollapsed(true);
   };
 
@@ -467,6 +478,9 @@ export function AutopilotPanel({ tripDepartureAt, tripExpectedEndAt, staging, ha
             <div className="button-row">
               <button className="secondary-button" onClick={useRelaxedDays} type="button">Use the relaxed plan instead</button>
             </div>
+          ) : null}
+          {relaxedPlanIssues.length ? (
+            <ul>{relaxedPlanIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
           ) : null}
         </div>
       ) : null}

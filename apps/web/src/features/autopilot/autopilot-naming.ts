@@ -25,7 +25,8 @@ export const DISCOVERY_WORKER_BASE_URL = 'https://discovery.rideksu.com';
  *  ceiling so it never crowds out the destination search the rider is also
  *  using in the same panel. */
 export const MAX_REVERSE_LOOKUPS = 30;
-export const REVERSE_LOOKUP_CONCURRENCY = 4;
+export const REVERSE_LOOKUP_TIMEOUT_MS = 15_000;
+const REVERSE_LOOKUP_CONCURRENCY = 4;
 
 /**
  * Thin an index list down to at most `max` entries, evenly spaced, always
@@ -83,10 +84,14 @@ export async function resolveInteriorNames(
 ): Promise<Map<number, ResolvedAnchorName>> {
   const resolved = new Map<number, ResolvedAnchorName>();
   const throttled = pickEvenSubset(points, MAX_REVERSE_LOOKUPS);
+  // A black-holed network must never pin the panel's busy state: every batch
+  // rides a hard timeout in addition to any caller-supplied signal.
+  const timeout = AbortSignal.timeout(REVERSE_LOOKUP_TIMEOUT_MS);
+  const effectiveSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
   for (let start = 0; start < throttled.length; start += REVERSE_LOOKUP_CONCURRENCY) {
     const batch = throttled.slice(start, start + REVERSE_LOOKUP_CONCURRENCY);
-    const names = await Promise.all(batch.map((point) => fetchOne(point.latitude, point.longitude, signal)));
+    const names = await Promise.all(batch.map((point) => fetchOne(point.latitude, point.longitude, effectiveSignal)));
     batch.forEach((point, i) => {
       const name = names[i];
       const nameSource: AnchorNameSource = name ? 'reverse_geocode' : 'none';
