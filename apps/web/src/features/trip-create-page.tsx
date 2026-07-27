@@ -48,6 +48,8 @@ export function TripCreatePage() {
   const [endLocal, setEndLocal] = useState('');
   const [departureLabel, setDepartureLabel] = useState('');
   const [staging, setStaging] = useState<StagingPin | null>(null);
+  // Armed-placement latch: the map only accepts a click while this is true.
+  const [placingPin, setPlacingPin] = useState(false);
   const [stagingQuery, setStagingQuery] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [pace, setPace] = useState('');
@@ -103,11 +105,36 @@ export function TripCreatePage() {
     }
   };
 
+  /**
+   * Placement is ARMED, never ambient. A bare map click used to become the
+   * staging pin outright, and because the map opens at zoom 4 (where a few
+   * pixels is several hundred miles) one stray click — dismissing the date
+   * picker, say — put the pin in the Gulf of Alaska and the camera then jumped
+   * to zoom 12 on open ocean. This mirrors the app's planner, where you choose
+   * START / STOP / RIDE THRU / FINISH before you place anything: intent first,
+   * then the map click means something.
+   */
   const dropStagingPin = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    if (!placingPin) return;
     const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
     setStaging({ displayName: label, address: '', latitude, longitude, providerPlaceId: null, source: 'dropped_pin' });
     setStagingQuery(label);
     setSuggestions([]);
+    setPlacingPin(false);
+  };
+
+  /** Dragging the marker refines a pin the rider already placed on purpose, so it needs no arming. */
+  const moveStagingPin = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+    setStaging((current) => current && { ...current, displayName: label, latitude, longitude, providerPlaceId: null, source: 'dropped_pin' });
+    setStagingQuery(label);
+  };
+
+  const clearStaging = () => {
+    setStaging(null);
+    setStagingQuery('');
+    setSuggestions([]);
+    setPlacingPin(false);
   };
 
   const create = async () => {
@@ -201,8 +228,10 @@ export function TripCreatePage() {
               <TextInput
                 autoComplete="off"
                 hint={staging
-                  ? `Pinned · ${staging.latitude.toFixed(4)}, ${staging.longitude.toFixed(4)} — Day 1 navigation starts here.`
-                  : 'Search, or click the map to drop the pin. Day 1 navigation starts here.'}
+                  ? `Pinned · ${staging.latitude.toFixed(4)}, ${staging.longitude.toFixed(4)} — Day 1 navigation starts here. Drag the marker to nudge it.`
+                  : placingPin
+                    ? 'Click the map to set the staging spot.'
+                    : 'Search for the meet-up spot, or use Drop the pin. Day 1 navigation starts here.'}
                 label="Staging spot"
                 onChange={(event) => { setStaging(null); setStagingQuery(event.target.value); }}
                 placeholder="Search the meet-up spot"
@@ -219,7 +248,17 @@ export function TripCreatePage() {
                 </div>
               ) : null}
             </div>
-            {staging ? <StampChip label="Staging set" tone="moss" /> : <StampChip label="Staging needed" tone="rust" />}
+            <div className="ksu-staging-actions">
+              {staging ? <StampChip label="Staging set" tone="moss" /> : <StampChip label={placingPin ? 'Click the map' : 'Staging needed'} tone={placingPin ? 'brass' : 'rust'} />}
+              <Button
+                aria-pressed={placingPin}
+                onClick={() => setPlacingPin((armed) => !armed)}
+                variant={placingPin ? 'primary' : 'secondary'}
+              >
+                {placingPin ? 'Cancel' : staging ? 'Move the pin' : 'Drop the pin'}
+              </Button>
+              {staging ? <Button onClick={clearStaging} variant="text">Clear</Button> : null}
+            </div>
 
             <details className="ksu-disclosure">
               <summary>Ride fields (optional)</summary>
@@ -240,12 +279,12 @@ export function TripCreatePage() {
 
             <Button block disabled={busy} onClick={() => void create()} variant="primary">{busy ? 'Creating…' : 'Create the trip'}</Button>
           </aside>
-          <div className="ksu-map-frame">
+          <div className={placingPin ? 'ksu-map-frame is-placing' : 'ksu-map-frame'}>
             <GoogleRouteMap
               apiKey={publicEnv.googleMapsBrowserKey}
               mapId={publicEnv.googleMapId}
               onMapClick={dropStagingPin}
-              onPointMoved={(_id, coordinates) => dropStagingPin(coordinates)}
+              onPointMoved={(_id, coordinates) => moveStagingPin(coordinates)}
               onPointSelected={() => undefined}
               points={staging ? [{ id: 'staging', kind: 'origin', displayName: staging.displayName, latitude: staging.latitude, longitude: staging.longitude, token: 'S', purpose: 'Start', selected: true }] : []}
               routePoints={[]}
