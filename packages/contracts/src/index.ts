@@ -75,6 +75,17 @@ export function canUsePremiumPlanner(snapshot: CapabilitySnapshot) {
   return snapshot.projectionState === 'ready' && hasAccountCapability(snapshot, 'routes.plan');
 }
 
+/**
+ * Trip authoring gates on routes.plan.web — the Premium-only planner-surface
+ * capability — NOT on routes.plan, which Basic also holds. create_trip_ride
+ * enforces has_active_route_provider_access server-side (Basic excluded);
+ * gating on routes.plan would walk a Basic rider through the whole trip form
+ * and fail with a 42501 at the last click.
+ */
+export function canAuthorTripsOnWeb(snapshot: CapabilitySnapshot) {
+  return snapshot.projectionState === 'ready' && hasAccountCapability(snapshot, 'routes.plan.web');
+}
+
 export function hasClubCapability(snapshot: CapabilitySnapshot, clubId: string, capability: ClubCapability) {
   return snapshot.clubCapabilities.some((scope) => scope.clubId === clubId && scope.capabilities.includes(capability));
 }

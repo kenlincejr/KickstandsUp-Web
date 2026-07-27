@@ -55,6 +55,14 @@ describe('capability projection parsing', () => {
     expect(stale.limits.new_paid_work).toBe(false);
   });
 
+  it('strips routes.plan.web on stale — trip AUTHORING pauses, trip reading never does', () => {
+    const snapshot = parseCapabilitySnapshot({ ...readyPremium, account_capabilities: ['rides.read_authorized', 'routes.plan', 'routes.plan.web'] });
+    if (!snapshot) throw new Error('Fixture did not parse.');
+    const stale = toStaleSnapshot(snapshot);
+    expect(stale.accountCapabilities).not.toContain('routes.plan.web');
+    expect(stale.accountCapabilities).toContain('rides.read_authorized');
+  });
+
   it('fails closed for unavailable or malformed results', () => {
     expect(parseCapabilitySnapshot('premium')).toBeNull();
     expect(parseCapabilitySnapshot({ ...readyPremium, schema_version: 2 })).toBeNull();
