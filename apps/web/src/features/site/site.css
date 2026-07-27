@@ -307,7 +307,15 @@
 /* --------------------------------------------------------- hero (homepage) */
 
 .ksu-site-hero { position: relative; width: 100%; }
-.ksu-site-hero-frame { position: relative; width: 100%; height: clamp(480px, 56vw, 780px); overflow: hidden; }
+/* Height stops growing at 780px (56vw hits that at ~1393px viewport width). Past
+   that point width must stop growing too, or object-fit: cover keeps scaling the
+   photo up to fill the extra width — cropping ever more off the top/bottom and
+   sliding the riders out from under the fixed-position text on wide monitors.
+   Freezing max-width at the same breakpoint (780px / 0.56) keeps frame and photo
+   locked together above it, so nothing in the hero moves once you're past
+   ordinary desktop widths; the frame just centers with the page background
+   showing at the sides. */
+.ksu-site-hero-frame { position: relative; width: 100%; max-width: calc(780px / 0.56); margin: 0 auto; height: clamp(480px, 56vw, 780px); overflow: hidden; }
 .ksu-site-hero-frame > img {
   width: 100%;
   height: 100%;
