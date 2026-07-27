@@ -12,22 +12,22 @@ export function TripAuthoringRoute() {
   if (loading) return <section className="tool-page">Checking your trip-planning access…</section>;
   if (canAuthorTripsOnWeb(snapshot)) return <Outlet />;
 
-  const unavailable = snapshot.projectionState === 'unavailable';
-  const stale = snapshot.projectionState === 'stale';
+  // §9.3 asymmetry: EDITING pauses on a stale/unavailable projection, READING
+  // never does. The pages render read-only with a named banner; unmounting
+  // them here would both block free reads and destroy unsaved work when the
+  // projection flips stale on its timer mid-edit.
+  if (snapshot.projectionState !== 'ready') return <Outlet />;
+
   const basic = snapshot.accountTier === 'basic';
 
   return (
     <section className="tool-page locked-feature">
       <p className="kicker">KSU TRIPS</p>
-      <h1>{unavailable ? "We can't verify trip planning access." : stale ? 'Trip planning needs a fresh check.' : 'Multi-day trips are a Premium feature.'}</h1>
+      <h1>Multi-day trips are a Premium feature.</h1>
       <p>
-        {unavailable
-          ? "KSU couldn't load your server access. Planning stays paused; nothing you've already saved or published is affected."
-          : stale
-            ? "Your last access check is stale, so new edits and provider calls stay paused until KSU reconnects. Trips you've already published still show on riders' phones."
-            : basic
-              ? 'Your plan includes route planning. Multi-day trips — day-by-day routes, lodging and the whole-trip view — are part of Premium.'
-              : 'Multi-day trips — day-by-day routes, lodging and the whole-trip view — are part of KSU Premium.'}
+        {basic
+          ? 'Your plan includes route planning. Multi-day trips — day-by-day routes, lodging and the whole-trip view — are part of Premium.'
+          : 'Multi-day trips — day-by-day routes, lodging and the whole-trip view — are part of KSU Premium.'}
       </p>
       <Link className="secondary-button" to="/app/account">Check account access</Link>
     </section>

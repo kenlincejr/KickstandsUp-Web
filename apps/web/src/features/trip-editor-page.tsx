@@ -11,13 +11,19 @@ import { riderCopyForTripError } from './trip-errors';
 import { tripLegOrigin } from './trip-origin';
 import {
   buildSetTripLegsPayload,
+  dayForPayload,
   dayStopsFromPoints,
+  fromLocalInput,
+  legToDay,
+  toLocalInput,
   validateTripDays,
   TRIP_LIMITS,
   type TripDayDraft,
   type TripDayIssue,
   type TripDraftPoint,
 } from './trip-payload';
+import { useAuth } from './auth/auth-context';
+import { supabase } from '../lib/supabase';
 import {
   getRideTrip,
   getTripRideMeta,
@@ -36,64 +42,12 @@ import {
 /** Two full preview passes over a six-day trip; a courtesy ceiling, not enforcement. */
 const SESSION_PREVIEW_BUDGET = 12;
 
-function toLocalInput(iso: string): string {
-  const parsed = new Date(iso);
-  if (!Number.isFinite(parsed.getTime())) return '';
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
-}
-
-function fromLocalInput(local: string): string {
-  const parsed = new Date(local);
-  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : '';
-}
-
-function legToDay(leg: TripLeg): TripDayDraft {
-  return {
-    id: leg.id,
-    legId: leg.id,
-    title: leg.title ?? '',
-    departAt: leg.departAt,
-    arriveBy: leg.arriveBy ?? '',
-    leg: {
-      ...createRouteLegDraft({ title: leg.title || 'Trip day' }),
-      points: leg.stops.map((stop, index): TripDraftPoint => ({
-        id: `${leg.id}-${index}-${stop.stopId}`,
-        kind: index === 0 ? 'origin' : index === leg.stops.length - 1 ? 'destination' : stop.kind === 'via' ? 'via' : 'stop',
-        displayName: stop.displayName,
-        latitude: stop.latitude,
-        longitude: stop.longitude,
-        googlePlaceId: stop.providerPlaceId,
-        source: stop.source === 'place_search' ? 'google_place' : 'manual',
-        coordinateProvenance: stop.source === 'place_search' ? 'google_places' : 'ksu_customer',
-        stopId: stop.stopId,
-        address: stop.address,
-        locality: stop.locality,
-        stopLabels: stop.stopLabels,
-        plannedDepartAt: stop.plannedDepartAt,
-        routedLeg: stop.routedLeg,
-      })),
-    },
-    routeRevisionId: leg.routeRevisionId,
-    plannedDistanceMeters: leg.plannedDistanceMeters,
-    plannedDurationSeconds: leg.plannedDurationSeconds,
-    lodgingName: leg.lodgingName ?? '',
-    lodgingAddress: leg.lodgingAddress ?? '',
-    bookingUrl: leg.bookingUrl ?? '',
-    checkInAt: leg.checkInAt ? toLocalInput(leg.checkInAt) : '',
-    checkOutAt: leg.checkOutAt ? toLocalInput(leg.checkOutAt) : '',
-    notes: leg.notes ?? '',
-    restDay: leg.stops.length === 0,
-  };
-}
-
-/** Wire timestamps for lodging come from datetime-local inputs. */
-function dayForPayload(day: TripDayDraft): TripDayDraft {
-  return {
-    ...day,
-    checkInAt: day.checkInAt ? fromLocalInput(day.checkInAt) : '',
-    checkOutAt: day.checkOutAt ? fromLocalInput(day.checkOutAt) : '',
-  };
+/** Minute-precision normalization so dirty-tracking compares like with like:
+ * the server returns "+00:00"-style offsets, the date inputs round-trip
+ * through datetime-local, and raw string comparison would flag every loaded
+ * trip as dirty forever. */
+function normalizedIso(iso: string): string {
+  return fromLocalInput(toLocalInput(iso));
 }
 
 function summaryLeg(day: TripDayDraft, index: number): TripLeg {
@@ -121,8 +75,9 @@ export function TripEditorPage() {
   const { rideId } = useParams<{ rideId: string }>();
   const location = useLocation();
   const { snapshot } = useCapabilities();
+  const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [meta, setMeta] = useState<{ title: string; status: string; staging: { latitude: number; longitude: number } | null; stagingName: string | null } | null>(null);
+  const [meta, setMeta] = useState<{ title: string; status: string; staging: { latitude: number; longitude: number } | null; stagingName: string | null; createdBy: string | null } | null>(null);
   const [days, setDays] = useState<TripDayDraft[]>([]);
   const [openDayId, setOpenDayId] = useState<string | null>(null);
   const [startLocal, setStartLocal] = useState('');
@@ -144,7 +99,10 @@ export function TripEditorPage() {
   // Editing pauses on a stale/unavailable projection; reading never does.
   const projectionEditable = snapshot.projectionState === 'ready';
   const statusEditable = meta ? meta.status === 'scheduled' || meta.status === 'forming' : true;
-  const editable = projectionEditable && statusEditable && !terminalLock;
+  // Only the coordinator edits — a joined rider gets the read surface, never a
+  // form that 42501s at the last click.
+  const isCoordinator = !meta?.createdBy || meta.createdBy === user?.id;
+  const editable = projectionEditable && statusEditable && !terminalLock && isCoordinator;
 
   const openIndex = days.findIndex((day) => day.id === openDayId);
   const openDay = openIndex >= 0 ? days[openIndex] : null;
@@ -188,12 +146,13 @@ export function TripEditorPage() {
         status: rideMeta.status,
         staging: rideMeta.stagingLatitude !== null && rideMeta.stagingLongitude !== null ? { latitude: rideMeta.stagingLatitude, longitude: rideMeta.stagingLongitude } : null,
         stagingName: rideMeta.stagingDisplayName,
+        createdBy: rideMeta.createdBy,
       } : null);
       const loadedDays = loaded.legs.map(legToDay);
       setDays(loadedDays);
       setStartLocal(toLocalInput(loaded.departureAt));
       setEndLocal(toLocalInput(loaded.expectedEndAt));
-      setServerState(JSON.stringify({ start: loaded.departureAt, end: loaded.expectedEndAt, legs: buildSetTripLegsPayload(loadedDays.map(dayForPayload)) }));
+      setServerState(JSON.stringify({ start: normalizedIso(loaded.departureAt), end: normalizedIso(loaded.expectedEndAt), legs: buildSetTripLegsPayload(loadedDays.map(dayForPayload)) }));
       setOpenDayId(null);
       editorDayRef.current = null;
       setIssues([]);
@@ -231,6 +190,9 @@ export function TripEditorPage() {
   }, [dirty]);
 
   const openDayEditor = (dayId: string) => {
+    // Never re-point the editor while a preview/save is in flight — the epoch
+    // guard would discard the result, but the click order should not race it.
+    if (editor.busy !== null) return;
     const target = days.find((day) => day.id === dayId);
     if (!target) return;
     setOpenDayId(dayId);
@@ -239,6 +201,7 @@ export function TripEditorPage() {
   };
 
   const closeDayEditor = () => {
+    if (editor.busy !== null) return;
     setOpenDayId(null);
     editorDayRef.current = null;
   };
@@ -325,8 +288,8 @@ export function TripEditorPage() {
       return;
     }
     setPageError(null);
-    setPreviewsUsed((current) => current + 1);
-    await editor.runPreview();
+    // Only a preview that actually landed draws the session budget.
+    if (await editor.runPreview()) setPreviewsUsed((current) => current + 1);
   };
 
   const departuresOutOfOrder = useMemo(() => {
@@ -354,10 +317,25 @@ export function TripEditorPage() {
     setPageError(null);
     setNotice(null);
     try {
-      const datesChanged = window_.departureAt !== trip.departureAt || window_.expectedEndAt !== trip.expectedEndAt;
-      // Dates first: legs are validated against the ride's CURRENT dates.
-      if (datesChanged) await setTripDates(rideId, window_.departureAt, window_.expectedEndAt);
-      const count = await setTripLegs(rideId, buildSetTripLegsPayload(payloadDays));
+      // Compare at the same minute precision the inputs round-trip through —
+      // raw string comparison would re-fire set_trip_dates on every save.
+      const datesChanged = window_.departureAt !== normalizedIso(trip.departureAt) || window_.expectedEndAt !== normalizedIso(trip.expectedEndAt);
+      const writePlan = async () => {
+        // Dates first: legs are validated against the ride's CURRENT dates.
+        if (datesChanged) await setTripDates(rideId, window_.departureAt, window_.expectedEndAt);
+        return setTripLegs(rideId, buildSetTripLegsPayload(payloadDays));
+      };
+      let count: number;
+      try {
+        count = await writePlan();
+      } catch (firstFailure) {
+        // An expired browser session gets one silent refresh-and-retry; the
+        // leader's plan is still in local state either way.
+        if ((firstFailure as TripRpcError).code !== '28000' || !supabase) throw firstFailure;
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw firstFailure;
+        count = await writePlan();
+      }
       // The refetch is not optional: the server truncates strings, and the only
       // way to show the leader what riders will actually see is to re-read it.
       await loadTrip();
@@ -410,7 +388,7 @@ export function TripEditorPage() {
         </div>
         <div className="route-header-actions">
           <div className="button-row">
-            <Link className="secondary-button" to="/app/trips">All trips</Link>
+            <Link className="secondary-button" onClick={(event) => { if (dirty && !window.confirm('Leave without saving? Your unsaved day plan will be lost.')) event.preventDefault(); }} to="/app/trips">All trips</Link>
             <button className="primary-button" disabled={!editable || savingTrip || !dirty} onClick={() => void saveTrip()} type="button">{savingTrip ? 'Saving…' : 'Save the plan'}</button>
           </div>
           {editable ? <details className="planner-help-menu">
@@ -422,6 +400,7 @@ export function TripEditorPage() {
         </div>
       </header>
       {!projectionEditable ? <div className="planner-notice" role="status">Access check is {snapshot.projectionState === 'stale' ? 'stale' : 'unavailable'}. You can read this trip; new edits and route previews are paused until KSU reconnects.</div> : null}
+      {!isCoordinator ? <div className="planner-notice" role="status">Only the rider who created this trip can change it. You’re viewing the plan.</div> : null}
       {!statusEditable || terminalLock ? <div className="planner-notice" role="status">This trip has already started or been closed, so the plan is locked. Riders can still see it.</div> : null}
       {pageError ? <div className="planner-notice error" role="alert">{pageError}</div> : null}
       {notice ? <div className="planner-notice success" role="status">{notice}</div> : null}

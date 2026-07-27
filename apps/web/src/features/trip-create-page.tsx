@@ -6,6 +6,7 @@ import { riderCopyForTripError } from './trip-errors';
 import { createTripRide } from './trip-repository';
 import { searchPlaces, resolvePlace, type PlaceSuggestion } from './route-planner-repository';
 import type { TripRpcError } from './trip-repository';
+import { useCapabilities } from './capability-context';
 
 const paceOptions = ['Chill', 'Steady', 'Spirited'];
 const bikeFitOptions = ['All bikes welcome', 'Cruisers', 'Sport bikes', 'ADV / dual-sport', 'Touring', 'Scooters / small displacement'];
@@ -36,6 +37,7 @@ function spanDays(startIso: string | null, endIso: string | null): number | null
 
 export function TripCreatePage() {
   const navigate = useNavigate();
+  const { snapshot } = useCapabilities();
   const [title, setTitle] = useState('');
   const [startLocal, setStartLocal] = useState('');
   const [endLocal, setEndLocal] = useState('');
@@ -147,6 +149,20 @@ export function TripCreatePage() {
       setBusy(false);
     }
   };
+
+  // Creation is new paid work: it pauses whenever the access projection is
+  // not fresh (reading existing trips stays open — that lives on other pages).
+  if (snapshot.projectionState !== 'ready') {
+    return (
+      <section className="tool-page locked-feature">
+        <p className="kicker">KSU TRIPS</p>
+        <h1>{snapshot.projectionState === 'stale' ? 'Trip planning needs a fresh check.' : "We can't verify trip planning access."}</h1>
+        <p>{snapshot.projectionState === 'stale'
+          ? "Your last access check is stale, so new trips stay paused until KSU reconnects. Trips you've already published still show on riders' phones."
+          : "KSU couldn't load your server access. Planning stays paused; nothing you've already saved or published is affected."}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="tool-page planner-page">

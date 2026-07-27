@@ -4,8 +4,9 @@
 // The P7 seam: TripDayDraft is a plain serializable array with no dependency
 // on how it was produced. Autopilot later adds proposeDays(constraints):
 // TripDayDraft[] and hands its output to the same editor and this same builder.
-import type { DraftPoint, RouteLegDraft } from './route-leg-editor-core';
+import { createRouteLegDraft, type DraftPoint, type RouteLegDraft } from './route-leg-editor-core';
 import { projectStops, type StagingLocation, type StopLabel } from './trip-stop-projection';
+import type { TripLeg } from './trip-repository';
 
 /** A trip-day editor point: the planner draft point plus round-trip passthrough. */
 export type TripDraftPoint = DraftPoint & {
@@ -101,7 +102,9 @@ export function dayStopsFromPoints(points: readonly TripDraftPoint[]): StagingLo
         longitude: point.longitude,
         locality: point.locality,
         providerPlaceId: point.googlePlaceId,
-        source: stagingSourceForPoint(point),
+        // wireSource preserves loaded provenance across an untouched round
+        // trip; the editor reducers clear it whenever the location changes.
+        source: point.wireSource ?? stagingSourceForPoint(point),
         kind,
         // A via never carries labels, a planned departure, or a routed leg —
         // the device parser strips all three; emitting them wastes byte budget.
@@ -229,13 +232,10 @@ export function validateTripDays(days: readonly TripDayDraft[], trip: TripValida
     if (Number.isFinite(windowStart) && Number.isFinite(windowEnd) && (departs < windowStart || departs > windowEnd)) {
       issues.push({ dayNumber, field: 'departAt', message: `Day ${dayNumber} is outside the trip's dates. Move the day, or change the trip dates.` });
     }
-    if (index > 0) {
-      const previous = Date.parse(ordered[index - 1].departAt);
-      if (Number.isFinite(previous) && departs < previous) {
-        issues.push({ dayNumber, field: 'departAt', message: `Day ${dayNumber} leaves before day ${index}. Days have to run forward.` });
-      }
-    }
-
+    // Chronological order is guaranteed by construction: validation and the
+    // payload builder both sort by departAt first, so "day N starts before
+    // day N-1" is unreachable at the server. The editor surfaces non-monotonic
+    // display order as a banner instead.
     const stops = day.restDay ? [] : dayStopsFromPoints(day.leg.points);
     if (!day.restDay) {
       const incomplete = day.leg.points.filter((point) => point.displayName.trim().length > 0 || Number.isFinite(point.latitude));
@@ -262,7 +262,12 @@ export function validateTripDays(days: readonly TripDayDraft[], trip: TripValida
         }
       }
     }
-    if (stopsByteLength(stops.map(compactStop)) > TRIP_LIMITS.maxStopBytesPerDay) {
+    // Measure with a placeholder id on not-yet-projected stops: the save path
+    // mints a 36-char stopId per stop, and measuring without it undercounts by
+    // up to ~290 octets/day — enough to pass here and fail server-side with
+    // the one 22023 that names no day.
+    const measured = stops.map((stop) => compactStop(stop.stopId ? stop : { ...stop, stopId: '00000000-0000-4000-8000-000000000000' }));
+    if (stopsByteLength(measured) > TRIP_LIMITS.maxStopBytesPerDay) {
       issues.push({ dayNumber, field: 'stops', message: `Day ${dayNumber} is too detailed to save — try shorter place names or fewer stops.` });
     }
 
@@ -335,5 +340,92 @@ export function scoreTripAuthoring(criteria: {
     maxScore: 100,
     passed: missing.length === 0,
     missing,
+  };
+}
+
+// ── Loaded-trip ↔ editor conversion ─────────────────────────────────────────
+// Lives here (not in the page) so the §12.3 round-trip test exercises the REAL
+// mapping: parseTrip → legToDay → dayForPayload → buildSetTripLegsPayload must
+// keep every stopId, kind, and source byte-identical for untouched days.
+
+export function toLocalInput(iso: string): string {
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+export function fromLocalInput(local: string): string {
+  const parsed = new Date(local);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : '';
+}
+
+function wirePointFromStop(stop: TripLeg['stops'][number], kind: DraftPoint['kind'], key: string): TripDraftPoint {
+  return {
+    id: key,
+    kind,
+    displayName: stop.displayName,
+    latitude: stop.latitude,
+    longitude: stop.longitude,
+    googlePlaceId: stop.providerPlaceId,
+    source: stop.source === 'place_search' ? 'google_place' : 'manual',
+    coordinateProvenance: stop.source === 'place_search' ? 'google_places' : 'ksu_customer',
+    wireSource: stop.source,
+    stopId: stop.stopId,
+    address: stop.address,
+    locality: stop.locality,
+    stopLabels: stop.stopLabels,
+    plannedDepartAt: stop.plannedDepartAt,
+    routedLeg: stop.routedLeg,
+  };
+}
+
+function blankEndpoint(kind: 'origin' | 'destination'): TripDraftPoint {
+  return { id: crypto.randomUUID(), kind, displayName: '' };
+}
+
+/**
+ * A wire day becomes an editable day. The editor model needs origin/destination
+ * endpoints; the wire has only stop|via. A leading/trailing wire STOP becomes
+ * the endpoint; a day that starts or ends on a via (or a rest day) gets a blank
+ * endpoint instead — blank points are dropped again on the way out, so the
+ * round trip preserves the stored kinds exactly.
+ */
+export function legToDay(leg: TripLeg): TripDayDraft {
+  const stops = leg.stops;
+  const firstIsStop = stops.length > 0 && (stops[0].kind ?? 'stop') === 'stop';
+  const lastIsStop = stops.length > 1 && (stops[stops.length - 1].kind ?? 'stop') === 'stop';
+  const middles = stops.slice(firstIsStop ? 1 : 0, lastIsStop ? stops.length - 1 : stops.length);
+  const points: TripDraftPoint[] = [
+    firstIsStop ? wirePointFromStop(stops[0], 'origin', `${leg.id}-0-${stops[0].stopId}`) : blankEndpoint('origin'),
+    ...middles.map((stop, index) => wirePointFromStop(stop, stop.kind === 'via' ? 'via' : 'stop', `${leg.id}-m${index}-${stop.stopId}`)),
+    lastIsStop ? wirePointFromStop(stops[stops.length - 1], 'destination', `${leg.id}-z-${stops[stops.length - 1].stopId}`) : blankEndpoint('destination'),
+  ];
+  return {
+    id: leg.id,
+    legId: leg.id,
+    title: leg.title ?? '',
+    departAt: leg.departAt,
+    arriveBy: leg.arriveBy ?? '',
+    leg: { ...createRouteLegDraft({ title: leg.title || 'Trip day' }), points },
+    routeRevisionId: leg.routeRevisionId,
+    plannedDistanceMeters: leg.plannedDistanceMeters,
+    plannedDurationSeconds: leg.plannedDurationSeconds,
+    lodgingName: leg.lodgingName ?? '',
+    lodgingAddress: leg.lodgingAddress ?? '',
+    bookingUrl: leg.bookingUrl ?? '',
+    checkInAt: leg.checkInAt ? toLocalInput(leg.checkInAt) : '',
+    checkOutAt: leg.checkOutAt ? toLocalInput(leg.checkOutAt) : '',
+    notes: leg.notes ?? '',
+    restDay: leg.stops.length === 0,
+  };
+}
+
+/** Lodging timestamps come from datetime-local inputs; normalize before wire/validate. */
+export function dayForPayload(day: TripDayDraft): TripDayDraft {
+  return {
+    ...day,
+    checkInAt: day.checkInAt ? fromLocalInput(day.checkInAt) : '',
+    checkOutAt: day.checkOutAt ? fromLocalInput(day.checkOutAt) : '',
   };
 }

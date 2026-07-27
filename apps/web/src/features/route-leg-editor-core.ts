@@ -10,6 +10,10 @@ export type DraftPoint = Omit<PlannerWaypoint, 'latitude' | 'longitude' | 'sourc
   longitude?: number;
   source?: PlannerWaypoint['source'];
   coordinateProvenance?: PlannerWaypoint['coordinateProvenance'];
+  /** Round-trip provenance passthrough for points loaded off the wire (trip
+   * legs). Cleared by every reducer that changes the point's location, so a
+   * re-placed point re-derives its provenance instead of keeping a stale one. */
+  wireSource?: 'manual' | 'google_maps_link' | 'current_location' | 'dropped_pin' | 'place_search';
 };
 
 export type RouteLegDraft = {
@@ -72,7 +76,7 @@ export function removePointById(points: readonly DraftPoint[], id: string): Draf
 
 export function clearPointLocation(points: readonly DraftPoint[], id: string, displayName: string): DraftPoint[] {
   return points.map((point) => point.id === id ? {
-    ...point, displayName, latitude: undefined, longitude: undefined, googlePlaceId: undefined, source: undefined, coordinateProvenance: undefined,
+    ...point, displayName, latitude: undefined, longitude: undefined, googlePlaceId: undefined, source: undefined, coordinateProvenance: undefined, wireSource: undefined,
   } : point);
 }
 
@@ -85,18 +89,19 @@ export function resolvePointToPlace(points: readonly DraftPoint[], id: string, p
     googlePlaceId: place.placeId,
     source: 'google_place',
     coordinateProvenance: 'google_places',
+    wireSource: undefined,
   } : point);
 }
 
 export function movePointCoordinates(points: readonly DraftPoint[], id: string, { latitude, longitude }: { latitude: number; longitude: number }): DraftPoint[] {
   return points.map((point) => point.id === id ? {
     ...point, displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude,
-    googlePlaceId: undefined, source: 'manual', coordinateProvenance: 'ksu_customer',
+    googlePlaceId: undefined, source: 'manual', coordinateProvenance: 'ksu_customer', wireSource: undefined,
   } : point);
 }
 
 export function droppedPinLocation({ latitude, longitude }: { latitude: number; longitude: number }) {
-  return { displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude, source: 'manual' as const, coordinateProvenance: 'ksu_customer' as const };
+  return { displayName: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude, source: 'manual' as const, coordinateProvenance: 'ksu_customer' as const, wireSource: undefined };
 }
 
 export function definitionFromDraft(draft: Pick<RouteLegDraft, 'points' | 'title' | 'avoidHighways' | 'avoidTolls' | 'avoidFerries'>, fuelPlan: PlannerFuelPlan | null): RouteDefinition | null {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from './auth/auth-context';
 import { listMyTrips, type TripListRow } from './trip-repository';
 
 function rangeLabel(trip: TripListRow) {
@@ -13,6 +14,8 @@ function rangeLabel(trip: TripListRow) {
 }
 
 export function TripListPage() {
+  const { user } = useAuth();
+  const userId = user?.id;
   const [trips, setTrips] = useState<TripListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ export function TripListPage() {
       {loading ? <div className="route-state"><p>Loading your trips…</p></div> : null}
       {!loading && !error && trips.length === 0 ? <div className="route-state"><h2>No trips on this account yet.</h2><p>A trip is one ride that spans days — dates and staging first, then a day-by-day plan riders follow on their phones.</p><Link className="primary-button" to="/app/trips/new">Plan your first trip</Link></div> : null}
       {!loading && trips.length ? <div className="route-library-grid rides-grid">{trips.map((trip) => <article className="library-route-card" key={trip.id}>
-        <div className="route-card-heading"><div><span>trip · {trip.status}</span><h2>{trip.title}</h2></div></div>
+        <div className="route-card-heading"><div><span>trip · {trip.status}{trip.createdBy && userId && trip.createdBy !== userId ? ' · riding, not leading' : ''}</span><h2>{trip.title}</h2></div></div>
         <div className="ride-when"><strong>{rangeLabel(trip)}</strong>{trip.stagingDisplayName ? <span>Staging: {trip.stagingDisplayName}</span> : null}</div>
         <div className="button-row ride-actions">
           <Link className="primary-button" to={`/app/trips/${trip.id}`}>Open the day plan</Link>

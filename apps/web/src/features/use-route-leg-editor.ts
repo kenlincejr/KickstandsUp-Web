@@ -57,6 +57,10 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
   // Google Places session tokens are per autocomplete-then-details sequence and
   // per editor instance; sharing one across day editors misbills the account.
   const placeSession = useRef(crypto.randomUUID());
+  // Draft generation. replaceDraft/clear bump it; an async preview/save result
+  // from a previous generation is discarded instead of landing in whichever
+  // draft is now loaded (the trip editor re-points one hook across days).
+  const draftEpoch = useRef(0);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onEditedRef = useRef(onEdited);
@@ -216,23 +220,27 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     setDraft((current) => ({ ...current, [flag]: value }));
   };
 
-  const runPreview = async () => {
+  const runPreview = async (): Promise<boolean> => {
     if (!definition || !isCompleteDefinition(definition)) {
       if (firstIncomplete) {
         setSelectedPointId(firstIncomplete.point.id);
         setError(`${firstIncomplete.identity.token} needs a location. Use Search or Place ${firstIncomplete.identity.token} on map below.`);
       }
-      return;
+      return false;
     }
+    const epoch = draftEpoch.current;
     setBusy('preview');
     setError(null);
     setHint(null);
     try {
       const preview = await previewRoute(definition);
+      if (draftEpoch.current !== epoch) return false;
       setDraft((current) => ({ ...current, preview, previewStale: false }));
       onChangeRef.current?.();
+      return true;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'KSU could not preview that route.');
+      if (draftEpoch.current === epoch) setError(reason instanceof Error ? reason.message : 'KSU could not preview that route.');
+      return false;
     } finally {
       setBusy(null);
     }
@@ -240,21 +248,24 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
 
   const runSave = async () => {
     if (!definition || !draft.preview || draft.previewStale) return;
+    const epoch = draftEpoch.current;
     setBusy('save');
     setError(null);
     setHint(null);
     try {
       const result = await saveRoute(definition, draft.preview, draft.routePlanId);
+      if (draftEpoch.current !== epoch) return;
       setDraft((current) => ({ ...current, saved: result, routePlanId: result.routePlanId }));
       onChangeRef.current?.();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'KSU could not save that route.');
+      if (draftEpoch.current === epoch) setError(reason instanceof Error ? reason.message : 'KSU could not save that route.');
     } finally {
       setBusy(null);
     }
   };
 
   const clear = (next?: Partial<RouteLegDraft>) => {
+    draftEpoch.current += 1;
     setDraft(createRouteLegDraft(next ?? initial));
     setSearchingPointId(null);
     setSelectedPointId(null);
@@ -268,6 +279,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
   };
 
   const replaceDraft = (next: RouteLegDraft) => {
+    draftEpoch.current += 1;
     setDraft(next);
     setSearchingPointId(null);
     setActivePlacementPointId(null);

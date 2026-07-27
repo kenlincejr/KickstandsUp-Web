@@ -44,9 +44,11 @@ export function riderCopyForTripError(code: string | undefined, rawMessage: stri
     return { message: 'This trip has already started or been closed, so the plan is locked. Riders can still see it.', terminal: true };
   }
   if (code === '23514') {
+    // Discriminate on constraint NAMES: every 23514 message contains the word
+    // "check", so a bare includes('check') would swallow all of them.
     if (message.includes('booking_url')) return { message: 'A booking link has to start with http:// or https:// and contain no spaces.' };
     if (message.includes('trip_span')) return { message: 'Those dates don’t work — a trip needs an end after its start, within 30 days.' };
-    if (message.includes('check')) return { message: 'A day’s target arrival is before its departure, or a check-out is before its check-in.' };
+    if (message.includes('ride_trip_legs_check')) return { message: 'A day’s target arrival is before its departure, or a check-out is before its check-in.' };
     return { message: GENERIC, clientBug: true };
   }
   if (code === '22023') {
