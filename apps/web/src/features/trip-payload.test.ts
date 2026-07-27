@@ -201,7 +201,7 @@ describe('validateTripDays (§10.1, per day, in order)', () => {
     expect(validateTripDays([day(), rest], trip)).toEqual([]);
   });
 
-  it('non-decreasing departures pass; a backwards day names both days', () => {
+  it('display order never matters — validation and the payload sort by departAt', () => {
     const one = day();
     const two = day({ departAt: '2026-08-01T07:00:00-05:00' });
     expect(validateTripDays([one, two], trip)).toEqual([]);

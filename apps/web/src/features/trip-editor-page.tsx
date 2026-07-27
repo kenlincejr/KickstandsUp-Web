@@ -23,6 +23,7 @@ import {
   type TripDraftPoint,
 } from './trip-payload';
 import { useAuth } from './auth/auth-context';
+import { setNavigationGuard } from './navigation-guard';
 import { supabase } from '../lib/supabase';
 import {
   getRideTrip,
@@ -100,8 +101,9 @@ export function TripEditorPage() {
   const projectionEditable = snapshot.projectionState === 'ready';
   const statusEditable = meta ? meta.status === 'scheduled' || meta.status === 'forming' : true;
   // Only the coordinator edits — a joined rider gets the read surface, never a
-  // form that 42501s at the last click.
-  const isCoordinator = !meta?.createdBy || meta.createdBy === user?.id;
+  // form that 42501s at the last click. Fails CLOSED: no meta, no created_by,
+  // or no session user all read as not-coordinator; the server still enforces.
+  const isCoordinator = Boolean(meta?.createdBy && user?.id && meta.createdBy === user.id);
   const editable = projectionEditable && statusEditable && !terminalLock && isCoordinator;
 
   const openIndex = days.findIndex((day) => day.id === openDayId);
@@ -180,13 +182,14 @@ export function TripEditorPage() {
   const dirty = Boolean(trip) && localState !== serverState;
 
   // A leader who spends forty minutes planning six days and loses it to a
-  // closed tab will not come back. (The app uses a declarative router, so the
-  // in-app guard is the accordion + sticky header; beforeunload covers the tab.)
+  // closed tab or a nav click will not come back. beforeunload covers the tab;
+  // the navigation-guard registry covers the AppShell's own links.
   useEffect(() => {
-    if (!dirty) return;
+    setNavigationGuard(dirty ? 'Leave without saving? Your unsaved day plan will be lost.' : null);
+    if (!dirty) return () => setNavigationGuard(null);
     const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener('beforeunload', guard);
-    return () => window.removeEventListener('beforeunload', guard);
+    return () => { window.removeEventListener('beforeunload', guard); setNavigationGuard(null); };
   }, [dirty]);
 
   const openDayEditor = (dayId: string) => {
