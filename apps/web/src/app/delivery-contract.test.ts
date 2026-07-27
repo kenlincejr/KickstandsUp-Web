@@ -87,12 +87,22 @@ describe('Cloudflare delivery contract', () => {
     const panel = repoFile('apps/web/src/features/auth/get-the-app-panel.tsx');
     expect(signIn).toContain('<GetTheAppPanel');
     expect(setup).toContain('<GetTheAppPanel');
-    expect(panel).toContain('to="/the-app"');
     expect(panel).toContain('AppleGlyph');
     expect(panel).toContain('GooglePlayGlyph');
     // Real store badges, not the marketing site's — that component depends on
     // .ksu-site's LaunchNoteContext, which these dark auth pages don't provide.
     expect(panel).not.toContain("from '../site/site-chrome'");
+    // The badges must NOT link to another page. /the-app has the same two
+    // badges, so a Link there is a dead-end loop, not an answer — they open
+    // ComingSoonNotice instead (there is no real store URL yet).
+    expect(panel).not.toContain('to="/the-app"');
+    expect(panel).toContain('ComingSoonNotice');
+    const notice = repoFile('apps/web/src/features/auth/coming-soon-notice.tsx');
+    expect(notice).toContain('role="dialog"');
+    expect(notice).toContain('aria-modal="true"');
+    // Same-message-twice by design, not a shared component reaching across
+    // the .ksu-site scope boundary.
+    expect(notice).not.toContain("from '../site/site-chrome'");
   });
 
   it('ships the editorial marketing site: routed nav pages, shared chrome, and no login links', () => {

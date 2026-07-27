@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { AppleGlyph, GooglePlayGlyph } from '../../design/store-glyphs';
+import { ComingSoonNotice } from './coming-soon-notice';
 
 /**
  * The web's whole answer to "I don't have an account": a hard-to-miss panel
@@ -9,27 +10,28 @@ import { AppleGlyph, GooglePlayGlyph } from '../../design/store-glyphs';
  * SignInPage (not signed in yet) and RiderSetupRequired (signed in, but no
  * rider profile).
  *
- * The badges link to /the-app rather than opening the launch-note modal
- * directly: that modal lives behind `.ksu-site`'s LaunchNoteContext, which
- * these dark, unscoped auth pages don't provide. Routing through /the-app
- * keeps the "still in testing" messaging in one place instead of a second
- * copy that can drift.
+ * The badges open ComingSoonNotice rather than linking anywhere: there is no
+ * real store URL yet, and a Link to /the-app just landed someone on another
+ * page with the same two badges — a dead-end loop, not an answer.
  */
 export function GetTheAppPanel({ heading, body }: { heading: string; body: string }) {
+  const [open, setOpen] = useState(false);
+
   return (
     <div className="auth-get-app">
       <p className="kicker">{heading}</p>
       <p>{body}</p>
       <div className="auth-store-row">
-        <Link className="auth-store-badge" to="/the-app">
+        <button className="auth-store-badge" type="button" onClick={() => setOpen(true)} aria-label="Download on the App Store — launching soon">
           <AppleGlyph className="auth-store-badge-glyph" />
           <span className="auth-store-badge-txt"><small>Download on the</small><b>App Store</b></span>
-        </Link>
-        <Link className="auth-store-badge" to="/the-app">
+        </button>
+        <button className="auth-store-badge" type="button" onClick={() => setOpen(true)} aria-label="Get it on Google Play — launching soon">
           <GooglePlayGlyph className="auth-store-badge-glyph" />
           <span className="auth-store-badge-txt"><small>Get it on</small><b>Google Play</b></span>
-        </Link>
+        </button>
       </div>
+      {open ? <ComingSoonNotice onClose={() => setOpen(false)} /> : null}
     </div>
   );
 }

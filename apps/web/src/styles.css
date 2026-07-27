@@ -74,10 +74,18 @@ footer { width: min(1180px, calc(100% - 48px)); min-height: 120px; margin: auto;
 .auth-store-badge-txt { display: flex; flex-direction: column; line-height: 1.05; }
 .auth-store-badge-txt small { font-size: 10px; color: var(--muted); }
 .auth-store-badge-txt b { font-size: 16px; font-weight: 800; }
+.auth-store-badge { cursor: pointer; font: inherit; text-align: left; }
 @media (max-width: 600px) {
   .auth-get-app { padding: 22px 20px 24px; }
   .auth-store-row { flex-direction: column; }
 }
+/* "Not live yet" dialog for the auth store badges — see ComingSoonNotice. */
+.auth-modal-bg { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 22px; background: rgba(8, 10, 6, .72); }
+.auth-modal { width: min(440px, 100%); padding: 32px 30px 30px; border: 1px solid var(--line); border-radius: 16px; background: #171d10; color: var(--ink); box-shadow: 0 40px 90px rgba(0, 0, 0, .5); }
+.auth-modal .kicker { margin: 0; }
+.auth-modal h2 { margin: 10px 0 12px; font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.05; letter-spacing: -.02em; }
+.auth-modal > p:not(.kicker) { margin: 0; color: var(--muted); line-height: 1.6; }
+.auth-modal .primary-button { margin-top: 22px; width: 100%; }
 .auth-provider-note { font-size: .86rem; }
 .notice { padding: 12px; border-left: 3px solid var(--orange); background: rgba(245, 166, 35, .08); }
 .error { color: #ff9a8e !important; }
