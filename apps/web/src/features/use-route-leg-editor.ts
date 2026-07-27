@@ -75,6 +75,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
   const markChanged = () => {
     setDraft((current) => ({ ...current, previewStale: Boolean(current.preview), saved: undefined }));
     setError(null);
+    setHint(null);
     onEditedRef.current?.();
     onChangeRef.current?.();
   };
@@ -135,6 +136,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
   const choosePlace = async (pointId: string, suggestion: PlaceSuggestion) => {
     setBusy('place');
     setError(null);
+    setHint(null);
     try {
       const place = await resolvePlace(suggestion.placeId, placeSession.current);
       setPoints((current) => resolvePointToPlace(current, pointId, place));
@@ -224,6 +226,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     }
     setBusy('preview');
     setError(null);
+    setHint(null);
     try {
       const preview = await previewRoute(definition);
       setDraft((current) => ({ ...current, preview, previewStale: false }));
@@ -239,6 +242,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     if (!definition || !draft.preview || draft.previewStale) return;
     setBusy('save');
     setError(null);
+    setHint(null);
     try {
       const result = await saveRoute(definition, draft.preview, draft.routePlanId);
       setDraft((current) => ({ ...current, saved: result, routePlanId: result.routePlanId }));
@@ -269,6 +273,7 @@ export function useRouteLegEditor({ initial, maxPoints, fuelPlan, instanceId, on
     setActivePlacementPointId(null);
     setSuggestions([]);
     setError(null);
+    setHint(null);
   };
 
   return {
