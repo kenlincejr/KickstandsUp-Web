@@ -90,6 +90,17 @@ describe('buildSetTripLegsPayload', () => {
     expect('routedLeg' in wireVia).toBe(false);
   });
 
+  it('carries editor-set stop labels onto the wire', () => {
+    // The round trip this whole feature depends on: labels set on the map card
+    // are DraftPoint state, and must survive projectStops to reach the phone.
+    // Before the on-map picker existed nothing in the web could set one, so
+    // this path was serializer-only and never exercised end to end.
+    const tagged = point({ kind: 'stop', displayName: 'Cooper’s BBQ', stopLabels: ['food', 'break'] });
+    const built = buildSetTripLegsPayload([day({ leg: { ...createRouteLegDraft(), points: [point({ kind: 'origin' }), tagged, point({ kind: 'destination', displayName: 'Llano, TX' })] } })]) as Record<string, unknown>[];
+    const wireStop = (built[0].stops as Record<string, unknown>[])[1];
+    expect(wireStop.stopLabels).toEqual(['food', 'break']);
+  });
+
   it('maps source to the StagingLocation vocabulary — never google_place', () => {
     expect(stagingSourceForPoint({ source: 'google_place', coordinateProvenance: 'google_places' })).toBe('place_search');
     expect(stagingSourceForPoint({ source: 'manual', coordinateProvenance: 'ksu_customer' })).toBe('dropped_pin');

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Notice, RibbonRule, Select, StampChip, TextInput, Toggle } from '../design/day-kit';
 import { RouteMapPalette } from './route-map-palette';
+import { MapStopCard } from './map-stop-card';
+import { SummaryBar } from '../design/control-language';
+import { mapSummaryLine } from './map-summary';
 import { buildGoogleMapsHandoffs } from './google-maps-handoff';
 import { GoogleRouteMap } from './google-route-map';
 import { mapMarkersFor } from './route-leg-editor-core';
@@ -36,6 +39,7 @@ export function RoutePlannerPage() {
   const [selectedBikeId, setSelectedBikeId] = useState('manual');
   const [fuelSource, setFuelSource] = useState<PlannerFuelPlan['source']>('manual');
   const [showTraffic, setShowTraffic] = useState(false);
+  const [itineraryOpen, setItineraryOpen] = useState(false);
   const [showPlanningGuide, setShowPlanningGuide] = useState(true);
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [weather, setWeather] = useState<RouteWeatherResponse | null>(null);
@@ -58,6 +62,20 @@ export function RoutePlannerPage() {
   const { points, title, preview, previewStale, saved } = { points: draft.points, title: draft.title, preview: draft.preview ?? null, previewStale: draft.previewStale, saved: draft.saved ?? null };
   const busy: 'preview' | 'save' | 'place' | 'weather' | null = editor.busy ?? (weatherBusy ? 'weather' : null);
   const error = editor.error ?? editor.hint;
+  // The card follows the selected point so purpose and name are editable where
+  // the rider is already looking, instead of only down in the itinerary list.
+  const selectedMapPoint = useMemo(() => {
+    const index = points.findIndex((point) => point.id === editor.selectedPointId);
+    return index >= 0 ? { point: points[index], index } : null;
+  }, [points, editor.selectedPointId]);
+  const plannerSummary = mapSummaryLine({
+    pointCount: points.length,
+    placedCount: points.filter((point) => typeof point.latitude === 'number' && typeof point.longitude === 'number').length,
+    distanceMeters: preview?.distanceMeters,
+    durationSeconds: preview?.durationSeconds,
+    previewStale,
+    routing: busy === 'preview',
+  });
 
   useEffect(() => {
     setShowPlanningGuide(shouldShowPlannerGuide(window.localStorage.getItem(plannerGuideStorageKey)));
@@ -193,8 +211,40 @@ export function RoutePlannerPage() {
         <div className="map-canvas route-preview-canvas ksu-map-frame">
           <GoogleRouteMap apiKey={publicEnv.googleMapsBrowserKey} mapId={publicEnv.googleMapId} onMapClick={actions.addMapPoint} onPointMoved={actions.moveMapPoint} onPointSelected={actions.selectPoint} points={mapMarkersFor(points, editor.selectedPointId)} routePoints={plottedPoints} selectedPointId={editor.selectedPointId} showTraffic={showTraffic} />
           <RouteMapPalette clearLabel="Clear" editor={editor} onClear={clearRoute} />
+          {selectedMapPoint ? (
+            <MapStopCard
+              canLabel={false}
+              editable
+              index={selectedMapPoint.index}
+              onDismiss={() => actions.setSelectedPointId(null)}
+              onRemove={() => actions.removePoint(selectedMapPoint.point.id)}
+              onSetLabels={(labels) => actions.setStopLabels(selectedMapPoint.point.id, labels)}
+              point={selectedMapPoint.point}
+              points={points}
+            />
+          ) : null}
         </div>
       </div>
+
+      {/* The device's itinerary bar: what you've built, always in view while
+          you build it, rather than a metric row that scrolls out of the sidebar. */}
+      <SummaryBar controlsId="planner-itinerary" onToggle={() => setItineraryOpen((open) => !open)} open={itineraryOpen} summary={plannerSummary}>
+        <ol className="ksu-summary-list">
+          {points.map((point, index) => {
+            const identity = routePointIdentity(points, index);
+            const placed = typeof point.latitude === 'number' && typeof point.longitude === 'number';
+            return (
+              <li key={point.id}>
+                <StampChip label={identity.token} tone={placed ? 'moss' : 'rust'} />
+                <button className="text-button" onClick={() => actions.selectPoint(point.id)} type="button">
+                  {point.displayName.trim() || `${identity.purpose} — not placed yet`}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </SummaryBar>
+
       <section className="planner-action-rail" aria-labelledby="planner-action-rail-title">
         <header><div><p className="kicker">NEXT RIDER JOB</p><h2 id="planner-action-rail-title">{freshPreview ? 'Route is fresh. Keep the plan honest.' : 'Preview the route before downstream actions.'}</h2></div><p className={`route-freshness ${freshPreview ? 'fresh' : 'stale'}`}>{freshPreview ? `Fresh route preview · calculated ${formatTimestamp(preview!.calculatedAt)} · valid until ${formatTimestamp(preview!.expiresAt)}` : preview ? 'Route changed after preview · conditions, save, and handoff are paused.' : 'No route preview yet.'}</p></header>
         <div className="planner-action-grid">

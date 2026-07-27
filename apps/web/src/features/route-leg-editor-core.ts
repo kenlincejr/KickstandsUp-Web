@@ -3,6 +3,7 @@
 import type { PlannerFuelPlan } from './planner-fuel-plan';
 import type { PlaceSuggestion, PlannerWaypoint, ResolvedPlace, RouteDefinition, RoutePreview, SavedRevision } from './route-planner-repository';
 import { routePointIdentity, type RoutePointDisplayIdentity } from './route-point-identity';
+import type { StopLabel } from './trip-stop-projection';
 
 export type DraftPoint = Omit<PlannerWaypoint, 'latitude' | 'longitude' | 'source' | 'coordinateProvenance'> & {
   id: string;
@@ -14,6 +15,12 @@ export type DraftPoint = Omit<PlannerWaypoint, 'latitude' | 'longitude' | 'sourc
    * legs). Cleared by every reducer that changes the point's location, so a
    * re-placed point re-derives its provenance instead of keeping a stale one. */
   wireSource?: 'manual' | 'google_maps_link' | 'current_location' | 'dropped_pin' | 'place_search';
+  /** Why the group is pulling over — gas/food/scenic/meetup/break. The wire,
+   * serializer and parser already carry this (trip-payload.ts:111,131,377);
+   * until now no editor point could hold one, so the web could never set it.
+   * Stops only: a via is a road the group rides through, not a place it stops,
+   * and the device enforces the same rule (src/features/rides/stop-projection.ts). */
+  stopLabels?: StopLabel[];
 };
 
 export type RouteLegDraft = {
@@ -67,7 +74,36 @@ export function reorderPointList(points: readonly DraftPoint[], fromId: string, 
 }
 
 export function setIntermediatePointKind(points: readonly DraftPoint[], id: string, kind: 'stop' | 'via'): DraftPoint[] {
-  return points.map((point) => point.id === id ? { ...point, kind } : point);
+  // Switching a stop to a via drops its labels: a via is a road, not a place
+  // the group pulls over at, so "gas" on one is meaningless. projectStops
+  // discards them on the wire anyway (trip-payload.ts:111) — clearing here
+  // keeps the draft honest instead of hiding a value that will vanish on save.
+  return points.map((point) => point.id === id ? { ...point, kind, stopLabels: kind === 'via' ? undefined : point.stopLabels } : point);
+}
+
+export function setPointStopLabels(points: readonly DraftPoint[], id: string, stopLabels: readonly StopLabel[]): DraftPoint[] {
+  return points.map((point) => point.id === id ? { ...point, stopLabels: stopLabels.length ? [...stopLabels] : undefined } : point);
+}
+
+/**
+ * Apply an async reverse-geocoded name to a point that is still wearing its
+ * coordinate label. Guarded three ways, because the lookup lands after an
+ * unpredictable delay: the point must still exist, must still sit at the exact
+ * coordinates we looked up, and must not have been renamed in the meantime
+ * (`expectedName`). The device namer takes the same precaution — without it a
+ * rider who drags or searches a pin mid-flight gets the old location's name.
+ */
+export function namePointFromReverseGeocode(
+  points: readonly DraftPoint[],
+  id: string,
+  { latitude, longitude, expectedName, name }: { latitude: number; longitude: number; expectedName: string; name: string },
+): DraftPoint[] {
+  return points.map((point) => point.id === id
+    && point.latitude === latitude
+    && point.longitude === longitude
+    && point.displayName === expectedName
+    ? { ...point, displayName: name }
+    : point);
 }
 
 export function removePointById(points: readonly DraftPoint[], id: string): DraftPoint[] {
@@ -113,7 +149,10 @@ export function definitionFromDraft(draft: Pick<RouteLegDraft, 'points' | 'title
     avoidTolls: draft.avoidTolls,
     avoidFerries: draft.avoidFerries,
     ...(fuelPlan ? { fuelPlan } : {}),
-    waypoints: draft.points.map(({ id: _id, ...point }) => point as PlannerWaypoint),
+    // stopLabels is trip-only — PlannerWaypoint does not model stop purpose and
+    // a saved route revision cannot round-trip it. Dropping it here keeps the
+    // route contract honest rather than shipping a field the server discards.
+    waypoints: draft.points.map(({ id: _id, stopLabels: _stopLabels, ...point }) => point as PlannerWaypoint),
   };
 }
 

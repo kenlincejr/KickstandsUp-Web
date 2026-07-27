@@ -51,6 +51,62 @@
 .ksu-staging-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ksu-s-2); margin-top: var(--ksu-s-2); }
 .ksu-staging-actions .ksu-btn { min-height: 38px; }
 .ksu-map-frame .ksu-map-strip { position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; margin: 0; }
+
+/* --- the selected-point card, top-left over the map ---
+   Sits opposite the disc rail (bottom-right) so it never covers the controls
+   the rider is using to place the next point. */
+.ksu-map-stop-card {
+  position: absolute;
+  top: var(--ksu-s-2);
+  left: var(--ksu-s-2);
+  z-index: 3;
+  display: grid;
+  gap: var(--ksu-s-2);
+  width: min(300px, calc(100% - var(--ksu-s-4)));
+  padding: var(--ksu-s-3);
+  border: 1px solid var(--ksu-line);
+  border-radius: var(--ksu-r-3);
+  background: var(--ksu-card);
+  box-shadow: 0 10px 28px rgba(38, 46, 30, .22);
+}
+.ksu-map-stop-card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--ksu-s-2); align-items: start; }
+.ksu-map-stop-card-name { min-width: 0; display: grid; gap: 2px; }
+.ksu-map-stop-card-name strong { overflow-wrap: anywhere; font-size: var(--ksu-t-body); line-height: 1.3; }
+.ksu-map-stop-card-name small { color: var(--ksu-ink-soft); font-size: var(--ksu-t-micro); }
+.ksu-map-stop-card-close {
+  min-width: 32px; min-height: 32px; padding: 0;
+  border: 0; border-radius: var(--ksu-r-1);
+  background: transparent; color: var(--ksu-ink-soft);
+  font-size: 1.1rem; line-height: 1; cursor: pointer;
+}
+.ksu-map-stop-card-close:hover { background: var(--ksu-paper-deep); color: var(--ksu-ink); }
+.ksu-map-stop-card-labels { display: flex; flex-wrap: wrap; gap: var(--ksu-s-1); margin: 0; padding: 0; border: 0; }
+.ksu-map-stop-card-labels legend {
+  padding: 0 0 var(--ksu-s-1);
+  color: var(--ksu-brass);
+  font-family: var(--ksu-display); font-weight: 400;
+  font-size: var(--ksu-t-eyebrow); letter-spacing: .13em; text-transform: uppercase;
+}
+/* Checkboxes, not pills-as-buttons: these are multi-select and must read as
+   such. The input stays in the DOM for keyboard and screen-reader use and is
+   visually replaced by the label's own state. */
+.ksu-map-stop-card-labels label {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 0 var(--ksu-s-2);
+  border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-1);
+  background: var(--ksu-paper); color: var(--ksu-ink-soft);
+  font-size: var(--ksu-t-small); cursor: pointer;
+}
+.ksu-map-stop-card-labels label.selected { border-color: var(--ksu-moss); background: var(--ksu-moss); color: #fff; }
+.ksu-map-stop-card-labels label:focus-within { outline: 2px solid var(--ksu-brass); outline-offset: 2px; }
+.ksu-map-stop-card-labels input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ksu-map-stop-card-labels:disabled label { cursor: not-allowed; opacity: .55; }
+.ksu-map-stop-card-remove {
+  min-height: 36px; padding: 0 var(--ksu-s-2);
+  border: 1px solid var(--ksu-line); border-radius: var(--ksu-r-1);
+  background: transparent; color: var(--ksu-rust);
+  font: inherit; font-size: var(--ksu-t-small); font-weight: 700; cursor: pointer;
+}
+.ksu-map-stop-card-remove:hover { border-color: var(--ksu-rust); }
 /* When the error strip is showing it owns the foot of the map; the rail lifts
    clear of it rather than sitting half-under it. */
 .ksu-map-frame:has(.ksu-map-strip) .ksu-palette-anchor { bottom: calc(var(--ksu-s-2) + 32px); }
