@@ -67,7 +67,9 @@ KickstandsUp-Web/                     # public website repository
 | `/c/join/:token` | Invite holder | Web + Edge | Safe club-invite preview and authenticated accept handoff; never auto-joins |
 | `/shop` | Anyone | Web | Public merchandise placeholder; future physical-goods checkout |
 | `/pricing` | Anyone | Web | Transparent Participant, Premium, and Club explanation; purchase actions follow platform/context policy |
-| `/signin` | Anyone | Web | Starts Supabase PKCE OAuth |
+| `/signin` | Existing riders | Web | Starts Supabase PKCE OAuth. Sign-in only — accounts are created in the app, never here |
+| `/signup` | Anyone | Web | Permanent redirect to `/signin`; there is no web signup surface |
+| `/app/*` (no rider profile) | Signed-in non-rider | Web | `RiderSetupRequired` — terminal screen pointing at the app; session kept, `/app` closed |
 | `/auth/callback` | OAuth redirect | Web | PKCE completion; never CDN cached |
 | `/app/*` | Signed-in rider | Web | Client application; RLS remains authoritative |
 | `/app/planner` | Premium-capable rider | Web | Desktop planner shell and route revisions |
@@ -83,6 +85,20 @@ Canonical HTTPS links should open the native app through Universal Links/App Lin
 ## Authentication
 
 The website and app use the same Supabase Auth user UUID. Email is profile data, not an authorization key.
+
+### The website is sign-in only (owner policy, 2026-07-27)
+
+Rider accounts are created in the installed app, never on the web. `/signin` serves riders who already exist; `/signup` is a permanent redirect to it and there is no web signup surface. A first-time visitor is told to download the app, create the account there, and return with the same login.
+
+Supabase OAuth cannot express "sign in but do not register" — the provider round-trip mints the `auth.users` row on first success regardless. So the website's test for *existing rider* is the artifact the app's onboarding creates and the web does not: a `profiles` row for `auth.uid()`. `ProtectedRoute` resolves that before admitting anyone to `/app`:
+
+- row present → into `/app`
+- no row → `RiderSetupRequired`, a terminal screen pointing at the app; the session stays but `/app` is closed
+- probe failed → an explicit retry screen. **A failed probe is never treated as a missing account** — telling an existing rider on a flaky connection to go create an account is a lie that costs a real sign-in.
+
+The orphaned auth user this can leave is harmless and is in fact the mechanism: it *is* the account. Install the app, sign in with the same provider, finish setup, and the same login now works on both surfaces.
+
+**This is client policy, not server enforcement.** The `profiles insert own` RLS policy still permits any authenticated session to insert its own row, so per the standing rule (browser guards are UX; Supabase is the authority) the boundary is UX-shaped. Closing it for real requires the `KickstandsUp` repo to make app onboarding the only sanctioned insert path — open work, not done here.
 
 Web flow:
 

@@ -35,7 +35,10 @@ export function App() {
       <Route path="/shop" element={<ShopPage />} />
       <Route path="/login" element={<Navigate to="/signin" replace />} />
       <Route path="/signin" element={<SignInPage />} />
-      <Route path="/signup" element={<SignInPage mode="signup" />} />
+      {/* Rider accounts are created in the app, never on the web (owner policy
+          2026-07-27). /signup keeps its URL so old links resolve, but it can
+          only ever land on sign-in — there is no web signup surface. */}
+      <Route path="/signup" element={<Navigate to="/signin" replace />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>

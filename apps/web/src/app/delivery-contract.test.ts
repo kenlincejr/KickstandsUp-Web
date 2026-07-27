@@ -35,10 +35,10 @@ describe('Cloudflare delivery contract', () => {
     }
   });
 
-  it('keeps sign-in and sign-up routed and provider-complete even though the v2 landing page omits login', () => {
-    // The homepage is intentionally login-free for now (marketing-only launch page —
-    // see docs/decisions.md). /signin and /signup still exist and still carry the
-    // same Google/Apple providers; only the home page's own links were dropped.
+  it('keeps sign-in routed and provider-complete even though the landing page omits login', () => {
+    // The homepage is intentionally login-free (marketing-only launch page — see
+    // docs/decisions.md). /signin still exists and still carries the same
+    // Google/Apple providers; only the home page's own links were dropped.
     const signIn = repoFile('apps/web/src/features/auth/sign-in-page.tsx');
     const auth = repoFile('apps/web/src/features/auth/auth-context.tsx');
     const routes = repoFile('apps/web/src/app/app.tsx');
@@ -49,6 +49,39 @@ describe('Cloudflare delivery contract', () => {
     expect(routes).toContain('path="/login"');
     expect(routes).toContain('to="/signin"');
     expect(routes).toContain('path="/signup"');
+  });
+
+  it('is sign-in only: the web never creates a rider account (owner policy 2026-07-27)', () => {
+    const signIn = repoFile('apps/web/src/features/auth/sign-in-page.tsx');
+    const routes = repoFile('apps/web/src/app/app.tsx');
+    const guard = repoFile('apps/web/src/features/auth/protected-route.tsx');
+    const setup = repoFile('apps/web/src/features/auth/rider-setup-required.tsx');
+    const strip = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+    // /signup must be a redirect, never a signup surface. Asserted on the route
+    // line itself so re-pointing it at a page fails here.
+    expect(routes).toMatch(/path="\/signup" element=\{<Navigate to="\/signin" replace \/>\}/);
+    // The page carries no signup mode and offers no account creation.
+    expect(signIn).not.toContain("mode?: 'signin' | 'signup'");
+    expect(signIn).not.toContain('to="/signup"');
+    const signInCopy = strip(signIn);
+    for (const promise of ['create your account', 'Create your KSU account', 'creates your rider account', 'Start your KSU account']) {
+      expect(signInCopy, `sign-in must not offer account creation: "${promise}"`).not.toContain(promise);
+    }
+    // It must say where accounts ARE made, and point at the app.
+    expect(signInCopy).toContain('accounts are created in the app');
+    expect(signIn).toContain('to="/the-app"');
+
+    // Signed in is not the same as "is a rider": /app is gated on the profile the
+    // app's onboarding writes, and the terminal screen sends them to the app.
+    expect(guard).toContain('fetchRiderAccountState');
+    expect(guard).toContain("account.status === 'setup-required'");
+    expect(guard).toContain('RiderSetupRequired');
+    // A failed probe must not be treated as a missing account.
+    expect(guard).toContain("account.status === 'unavailable'");
+    expect(setup).toContain('created in the KSU app');
+    expect(setup).toContain('to="/the-app"');
+    expect(setup).not.toContain('to="/signup"');
   });
 
   it('ships the editorial marketing site: routed nav pages, shared chrome, and no login links', () => {
