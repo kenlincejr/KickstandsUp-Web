@@ -112,4 +112,19 @@ describe('Cloudflare delivery contract', () => {
     expect(architecture).toContain('| `/app/trips/new` |');
     expect(architecture).toContain('| `/app/trips/:rideId` |');
   });
+
+  it('wires the Autopilot plan-step default path into the trip editor', () => {
+    const editorPage = repoFile('apps/web/src/features/trip-editor-page.tsx');
+    // The default-path copy itself lives in autopilot-panel.tsx (extracted so
+    // the panel is independently testable — trip-autopilot-spec-2026-07-26
+    // §6.1/§6.3); trip-editor-page.tsx is the thing that actually MOUNTS it,
+    // gated on the ai.route_assist capability, above the day list.
+    const panel = repoFile('apps/web/src/features/autopilot/autopilot-panel.tsx');
+
+    expect(editorPage).toContain('AutopilotPanel');
+    expect(editorPage).toContain("hasAccountCapability(snapshot, 'ai.route_assist')");
+    expect(panel).toContain('Plan my days for me');
+    expect(panel).toContain('I’ll build the days myself');
+    expect(panel).toContain('Tune it first');
+  });
 });

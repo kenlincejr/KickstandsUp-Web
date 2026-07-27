@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import { hasAccountCapability } from '@ksu/contracts';
 import { publicEnv } from '../lib/env';
 import { GoogleRouteMap } from './google-route-map';
 import { createRouteLegDraft, mapMarkersFor, type RouteLegDraft } from './route-leg-editor-core';
@@ -9,6 +10,8 @@ import { decodePolyline } from './route-planner-repository';
 import { useCapabilities } from './capability-context';
 import { riderCopyForTripError } from './trip-errors';
 import { tripLegOrigin } from './trip-origin';
+import { AutopilotPanel } from './autopilot/autopilot-panel';
+import { shouldOpenPendingLodgingFocus } from './autopilot/lodging-focus';
 import {
   buildSetTripLegsPayload,
   dayForPayload,
@@ -96,6 +99,15 @@ export function TripEditorPage() {
   const [terminalLock, setTerminalLock] = useState(false);
   const [previewsUsed, setPreviewsUsed] = useState(0);
   const [dailyRemaining, setDailyRemaining] = useState<number | null>(null);
+  // Autopilot's "Find lodging near X" CTA (spec §3.2c) accepts the plan (if
+  // not already accepted) and focuses the named day's OWN lodging fields —
+  // it never writes a lodging value itself, only a placeholder hint.
+  // `pendingLodgingFocus` is transient (one-shot — see the effect below);
+  // `lodgingPlaceholder` is the persistent display hint for that day's
+  // lodging-name input, kept separate so clearing the former doesn't blank
+  // the hint the instant the day opens.
+  const [pendingLodgingFocus, setPendingLodgingFocus] = useState<{ dayId: string; placeName: string } | null>(null);
+  const [lodgingPlaceholder, setLodgingPlaceholder] = useState<{ dayId: string; placeName: string } | null>(null);
 
   // Editing pauses on a stale/unavailable projection; reading never does.
   const projectionEditable = snapshot.projectionState === 'ready';
@@ -196,6 +208,15 @@ export function TripEditorPage() {
     // Never re-point the editor while a preview/save is in flight — the epoch
     // guard would discard the result, but the click order should not race it.
     if (editor.busy !== null) return;
+    // Already open on this exact day — bail rather than re-call
+    // editor.replaceDraft with a fresh object. This is MUST-FIX 1(b) from the
+    // 2026-07-27 gate review: replaceDraft changes editor.draft, a mirror
+    // effect below writes that back into `days` as a new array/object
+    // reference, and anything that re-runs off a `days` change (like the
+    // pending-lodging-focus effect just below) would otherwise call back in
+    // here and loop forever. See lodging-focus.ts's header comment for the
+    // full traced cycle.
+    if (openDayId === dayId) return;
     const target = days.find((day) => day.id === dayId);
     if (!target) return;
     setOpenDayId(dayId);
@@ -207,10 +228,51 @@ export function TripEditorPage() {
     if (editor.busy !== null) return;
     setOpenDayId(null);
     editorDayRef.current = null;
+    setLodgingPlaceholder(null);
   };
 
   const patchDay = (dayId: string, patch: Partial<TripDayDraft>) => {
     setDays((current) => current.map((day) => day.id === dayId ? { ...day, ...patch } : day));
+  };
+
+  // Once the pending-focus day actually lands in `days`, open it — ONE SHOT.
+  // MUST-FIX 1(a) from the 2026-07-27 gate review: `pendingLodgingFocus` is
+  // now cleared the same tick it's consumed, via the pure
+  // `shouldOpenPendingLodgingFocus` guard (lodging-focus.ts — see its header
+  // comment for the full traced infinite-loop cycle this closes). Persistent
+  // display state (the placeholder hint) lives separately in
+  // `lodgingPlaceholder`, which is NOT cleared here, so the hint survives
+  // after the one-shot open fires.
+  useEffect(() => {
+    if (shouldOpenPendingLodgingFocus(days, pendingLodgingFocus)) {
+      openDayEditor(pendingLodgingFocus!.dayId);
+      setPendingLodgingFocus(null);
+    }
+  }, [days, pendingLodgingFocus]);
+
+  // Autopilot never writes days directly — this IS the "explicit confirm"
+  // the spec requires (§6.1's placement rule): the rider tapped "Use these
+  // days" (or the relaxed-plan equivalent) inside AutopilotPanel, and only
+  // now does local `days` state change. set_trip_legs still is not called —
+  // that only happens from the existing "Save the plan" button below.
+  const acceptAutopilotDays = (drafts: TripDayDraft[], focus?: { dayIndex: number; placeName: string }) => {
+    if (days.length && !window.confirm('Replace the current day list with Autopilot’s proposal? Your unsaved edits to the existing days will be lost.')) return;
+    closeDayEditor();
+    setDays(drafts);
+    setNotice(null);
+    const focusDraft = focus ? drafts[focus.dayIndex] : undefined;
+    // pendingLodgingFocus drives the one-shot "open this day" effect above;
+    // lodgingPlaceholder is the persistent hint shown on the lodging-name
+    // input once that day is open (see the OVERNIGHT fieldset below).
+    setPendingLodgingFocus(focusDraft ? { dayId: focusDraft.id, placeName: focus!.placeName } : null);
+    setLodgingPlaceholder(focusDraft ? { dayId: focusDraft.id, placeName: focus!.placeName } : null);
+  };
+
+  const autopilotLodgingCta = (dayIndex: number, placeName: string, drafts: TripDayDraft[]) => {
+    // Rider tapped the CTA on a proposal day that isn't in the editor's day
+    // list yet — accept the plan first (the same explicit-confirm path as
+    // "Use these days"), then focus that day once it exists.
+    acceptAutopilotDays(drafts, { dayIndex, placeName });
   };
 
   const stagingOrigin = meta?.staging ?? null;
@@ -412,6 +474,20 @@ export function TripEditorPage() {
 
       <div className="planner-grid">
         <aside className="planner-panel">
+          {editable && hasAccountCapability(snapshot, 'ai.route_assist') ? (
+            <AutopilotPanel
+              hasExistingDays={days.length > 0}
+              onAccept={(drafts) => acceptAutopilotDays(drafts)}
+              onDailyRemaining={(remaining) => setDailyRemaining(remaining)}
+              onLodgingCta={autopilotLodgingCta}
+              onPreviewUsed={() => setPreviewsUsed((current) => current + 1)}
+              previewBudget={SESSION_PREVIEW_BUDGET}
+              previewsUsed={previewsUsed}
+              staging={meta?.staging ? { displayName: meta.stagingName ?? `${meta.staging.latitude.toFixed(5)}, ${meta.staging.longitude.toFixed(5)}`, latitude: meta.staging.latitude, longitude: meta.staging.longitude } : null}
+              tripDepartureAt={currentStart || trip.departureAt}
+              tripExpectedEndAt={currentEnd || trip.expectedEndAt}
+            />
+          ) : null}
           <ol className="planner-stop-list trip-day-list">
             {days.map((day, index) => {
               const summary = summaries[index];
@@ -447,7 +523,7 @@ export function TripEditorPage() {
                         </> : <p>{tripLegRouteLabel(summary) ?? 'No stops on this day.'}</p>}
                       </> : null}
                       <fieldset className="route-options"><legend>OVERNIGHT</legend>
-                        <label><span>Where you’re staying</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingNameMax} onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })} value={day.lodgingName} /></label>
+                        <label><span>Where you’re staying</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingNameMax} onChange={(event) => patchDay(day.id, { lodgingName: event.target.value })} placeholder={lodgingPlaceholder?.dayId === day.id ? lodgingPlaceholder.placeName : undefined} value={day.lodgingName} /></label>
                         {!day.lodgingName.trim() && (day.checkInAt || day.checkOutAt) ? <small>Add a name and your check-in times show on riders’ cards.</small> : null}
                         <label><span>Address</span><input disabled={!editable} maxLength={TRIP_LIMITS.lodgingAddressMax} onChange={(event) => patchDay(day.id, { lodgingAddress: event.target.value })} value={day.lodgingAddress} /></label>
                         <label><span>Booking link</span><input disabled={!editable} maxLength={TRIP_LIMITS.bookingUrlMax} onChange={(event) => patchDay(day.id, { bookingUrl: event.target.value })} placeholder="https://" value={day.bookingUrl} /></label>
