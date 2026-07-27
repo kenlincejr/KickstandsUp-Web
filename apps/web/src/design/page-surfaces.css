@@ -32,7 +32,12 @@
   position: sticky;
   top: 78px;
   overflow: hidden;
-  height: 620px;
+  /* Fill the viewport below the toolbar rather than a flat 620px: on a short
+     sidebar (trip create has six fields, not the planner's whole itinerary)
+     a fixed height left the map stopping well short of the panel, with dead
+     page background below it. Clamped so it never gets uncomfortably short
+     on a small window or absurdly tall on a large one. */
+  height: clamp(420px, calc(100vh - 78px - var(--ksu-s-4)), 860px);
   border: 1px solid var(--ksu-line);
   border-radius: var(--ksu-r-3);
   background: var(--ksu-paper-deep);

@@ -202,7 +202,7 @@ export function TripCreatePage() {
           one forward action right in brass. */}
       <Toolbar
         lead={<ToolbarAction onClick={() => navigate('/app/trips')} side="lead">Cancel</ToolbarAction>}
-        meta={days ? `${days} ${days === 1 ? 'day' : 'days'}${datesValid ? '' : ' — a trip can cover up to 30 days'}` : 'End strictly after start, within 30 days.'}
+        meta={days ? `${days} ${days === 1 ? 'day' : 'days'}${datesValid ? '' : ' — a trip can cover up to 30 days'}` : undefined}
         title="Plan a trip"
         trail={<ToolbarAction disabled={busy} onClick={() => void create()} side="trail">{busy ? 'Creating…' : 'Create'}</ToolbarAction>}
       />
@@ -219,7 +219,19 @@ export function TripCreatePage() {
             <RibbonRule label="Dates" />
             <div className="ksu-field-grid">
               <TextInput label="Rolling out" onChange={(event) => setStartLocal(event.target.value)} type="datetime-local" value={startLocal} />
-              <TextInput label="Back home by" onChange={(event) => setEndLocal(event.target.value)} type="datetime-local" value={endLocal} />
+              <TextInput
+                hint={!startIso || !endIso
+                  ? undefined
+                  : datesValid
+                    ? `${days} ${days === 1 ? 'day' : 'days'}`
+                    : Date.parse(endIso) <= Date.parse(startIso)
+                      ? 'Back home has to be after rolling out.'
+                      : 'A trip can cover up to 30 days.'}
+                label="Back home by"
+                onChange={(event) => setEndLocal(event.target.value)}
+                type="datetime-local"
+                value={endLocal}
+              />
             </div>
             <TextInput hint="Shown on riders' cards instead of a raw timestamp." label="Departure label (optional)" maxLength={80} onChange={(event) => setDepartureLabel(event.target.value)} placeholder="Rolling Friday 7:00 AM" value={departureLabel} />
 

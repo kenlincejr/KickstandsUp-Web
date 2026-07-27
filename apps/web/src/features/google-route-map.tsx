@@ -74,6 +74,10 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, selectedPoi
   clickHandler.current = onMapClick;
   moveHandler.current = onPointMoved;
   selectHandler.current = onPointSelected;
+  // Read fresh at geolocation-callback time, not effect-mount time — the
+  // request can still be pending when the rider places their first point.
+  const pointCountRef = useRef(0);
+  pointCountRef.current = points.length + routePoints.length;
 
   useEffect(() => {
     if (!apiKey || !host.current) return;
@@ -95,6 +99,29 @@ export function GoogleRouteMap({ apiKey, mapId, points, routePoints, selectedPoi
     });
     return () => { active = false; listener?.remove(); traffic.current?.setMap(null); traffic.current = null; setReady(false); };
   }, [apiKey, mapId]);
+
+  // A brand-new map with nothing on it yet still opens on the whole-US
+  // default, forcing a manual zoom-and-pan to find home — this is the one-
+  // time nudge toward "your area" a native maps app gives for free. Only fires
+  // on a genuinely blank canvas, once, and never overrides a point the rider
+  // has since placed (checked at resolve time, since the permission prompt can
+  // sit open for a while): every other point/route effect already owns
+  // centering once there is real data to frame.
+  useEffect(() => {
+    if (!ready || !map.current || pointCountRef.current > 0) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    let active = true;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!active || !map.current || pointCountRef.current > 0) return;
+        map.current.setCenter({ lat: position.coords.latitude, lng: position.coords.longitude });
+        map.current.setZoom(10);
+      },
+      () => undefined, // denied, unavailable, or timed out: keep the default view, no dialog
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 300_000 },
+    );
+    return () => { active = false; };
+  }, [ready]);
 
   useEffect(() => {
     if (!ready || !map.current || !maps.current) return;
