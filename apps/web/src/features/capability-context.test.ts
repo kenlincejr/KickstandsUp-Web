@@ -27,6 +27,25 @@ describe('capability projection parsing', () => {
     expect(snapshot?.clubCapabilities[0]).toEqual({ clubId: 'club-1', capabilities: ['club.read'] });
   });
 
+  it("parses the live contract's 'basic' tier — the value that used to brick every Basic subscriber", () => {
+    // Contract v3 emits account_tier 'basic'. The old union rejected it, the
+    // whole snapshot parsed to null, and the caller fell back to
+    // unavailableSnapshot(): every Basic subscriber's entire /app surface
+    // failed closed in production.
+    const snapshot = parseCapabilitySnapshot({ ...readyPremium, account_tier: 'basic', account_capabilities: ['rides.create', 'routes.plan.web', 'routes.elevation', 'conditions.route_forecast'] });
+    expect(snapshot?.accountTier).toBe('basic');
+    expect(snapshot?.accountCapabilities).toEqual(['rides.create', 'routes.plan.web', 'routes.elevation', 'conditions.route_forecast']);
+  });
+
+  it('degrades an UNKNOWN tier to participant instead of failing the snapshot (degrade-low)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const snapshot = parseCapabilitySnapshot({ ...readyPremium, account_tier: 'platinum' });
+    expect(snapshot).not.toBeNull();
+    expect(snapshot?.accountTier).toBe('participant');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('strips paid work when the projection becomes stale', () => {
     const snapshot = parseCapabilitySnapshot(readyPremium);
     if (!snapshot) throw new Error('Fixture did not parse.');

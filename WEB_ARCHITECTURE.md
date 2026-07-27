@@ -1,7 +1,7 @@
 # KSU Web Architecture
 
-Status: foundation implemented locally; not deployed
-Last updated: 2026-07-15
+Status: DEPLOYED — rideksu.com serves the /app surface (incl. the web planner) via Cloudflare Pages auto-deploy from main
+Last updated: 2026-07-26
 
 ## Executive decision
 
