@@ -4,7 +4,11 @@ import { ProtectedRoute } from '../features/auth/protected-route';
 import { AuthCallbackPage } from '../features/auth/auth-callback-page';
 import { SignInPage } from '../features/auth/sign-in-page';
 import { ClubConsolePage } from '../features/club-console-page';
-import { HomePage } from '../features/home-page';
+import { SiteHomePage } from '../features/site/site-home-page';
+import { HowItWorksPage } from '../features/site/how-it-works-page';
+import { TheAppPage } from '../features/site/the-app-page';
+import { ForClubsPage } from '../features/site/for-clubs-page';
+import { FaqPage } from '../features/site/faq-page';
 import { RoutePlannerPage } from '../features/route-planner-page';
 import { PremiumRoute } from '../features/premium-route';
 import { ShopPage } from '../features/shop-page';
@@ -21,7 +25,13 @@ import { TripListPage } from '../features/trip-list-page';
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      {/* Public marketing site. The long single-page landing was split: the
+          homepage is hero + colophon, and each nav link owns its own page. */}
+      <Route path="/" element={<SiteHomePage />} />
+      <Route path="/how-it-works" element={<HowItWorksPage />} />
+      <Route path="/the-app" element={<TheAppPage />} />
+      <Route path="/for-clubs" element={<ForClubsPage />} />
+      <Route path="/faq" element={<FaqPage />} />
       <Route path="/shop" element={<ShopPage />} />
       <Route path="/login" element={<Navigate to="/signin" replace />} />
       <Route path="/signin" element={<SignInPage />} />

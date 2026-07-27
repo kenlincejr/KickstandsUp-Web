@@ -51,15 +51,52 @@ describe('Cloudflare delivery contract', () => {
     expect(routes).toContain('path="/signup"');
   });
 
-  it('ships the v2 marketing landing page with the KSU logo, store badges, and premium section', () => {
-    const home = repoFile('apps/web/src/features/home-page.tsx');
+  it('ships the editorial marketing site: routed nav pages, shared chrome, and no login links', () => {
+    // The long single-page landing was split (design handoff, 2026-07-27): the
+    // homepage is hero + colophon only, and each nav link is its own route.
+    const routes = repoFile('apps/web/src/app/app.tsx');
+    const chrome = repoFile('apps/web/src/features/site/site-chrome.tsx');
+    const home = repoFile('apps/web/src/features/site/site-home-page.tsx');
 
-    expect(home).toContain('/KSU_Header_Mobile.jpg');
-    expect(home).toContain('App Store');
-    expect(home).toContain('Google Play');
-    expect(home).toContain('KSU Premium');
-    expect(home).not.toContain('to="/signin"');
-    expect(home).not.toContain('to="/signup"');
+    for (const path of ['/how-it-works', '/the-app', '/for-clubs', '/faq']) {
+      expect(routes).toContain(`path="${path}"`);
+    }
+    // The chrome the whole site shares: wordmark, both store badges, the
+    // Premium pill out to the existing planner, and the theme flip.
+    expect(chrome).toContain('/KSU_Header_Mobile.jpg');
+    expect(chrome).toContain('App Store');
+    expect(chrome).toContain('Google Play');
+    expect(chrome).toContain('ksu-site-premium');
+    expect(chrome).toContain('PLANNER_URL');
+    // Store badges are pre-launch buttons that open the launch note. A real
+    // store href here would be a dead link on the day it ships.
+    expect(chrome).not.toContain('apps.apple.com');
+    expect(chrome).not.toContain('play.google.com');
+    // The marketing surface stays login-free (see docs/decisions.md).
+    for (const source of [chrome, home]) {
+      expect(source).not.toContain('to="/signin"');
+      expect(source).not.toContain('to="/signup"');
+    }
+    // The cut homepage sections must not creep back. Comments are stripped
+    // first — the page's own comment names what was removed.
+    const rendered = home.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const cut of ['Why KSU', 'KSU Premium', 'ksu-site-band', 'ksu-site-closer']) {
+      expect(rendered, `the homepage must stay trimmed — ${cut} was cut`).not.toContain(cut);
+    }
+  });
+
+  it('does not restyle or re-route the premium planner', () => {
+    // The planner (Google SDK, Claude integration, planner state) is explicitly
+    // out of scope for the site rebuild. The site may only LINK to it.
+    const content = repoFile('apps/web/src/features/site/site-content.ts');
+    const siteCss = repoFile('apps/web/src/features/site/site.css');
+    const routes = repoFile('apps/web/src/app/app.tsx');
+
+    expect(content).toContain("export const PLANNER_URL = '/app/planner'");
+    // The site stylesheet is scoped to .ksu-site and must not reach planner classes.
+    expect(siteCss).not.toMatch(/\.planner-|\.ksu-day|\.map-canvas|\.google-route-map/);
+    // The planner route still sits behind the premium gate, unchanged.
+    expect(routes).toMatch(/<Route element=\{<PremiumRoute \/>\}>\s*<Route path="planner"/);
   });
 
   it('ships legal pages, token fallbacks, and both app-association documents', () => {

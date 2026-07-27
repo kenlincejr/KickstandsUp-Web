@@ -57,7 +57,8 @@ KickstandsUp-Web/                     # public website repository
 
 | URL | Audience | Owner | Rendering and cache policy |
 | --- | --- | --- | --- |
-| `/` | Anyone | Web | Marketing, static/edge cached |
+| `/` | Anyone | Web | Marketing homepage — hero banner + colophon strip only; static/edge cached |
+| `/how-it-works`, `/the-app`, `/for-clubs`, `/faq` | Anyone | Web | Marketing nav pages; shared site chrome in `features/site/site-chrome.tsx`; static/edge cached |
 | `/privacy`, `/terms`, `/support` | Anyone | Web | Static, versioned content |
 | `/invite/:token`, `/connect/:token` | Token holder | Web + Edge | Minimal fallback, `no-store`, `no-referrer`, `noindex` |
 | `/r/:token` | Token holder | Web + Edge | Future redacted ride projection with request-time metadata |

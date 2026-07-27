@@ -1,0 +1,692 @@
+/* ============================================================================
+   rideksu.com — public marketing site ("Field Guide" editorial rebuild).
+
+   Scoped under `.ksu-site` so it cannot reach the app shell, the auth pages,
+   the legal pages, or the route planner. Nothing in this file may be reused by
+   /app/* surfaces, and nothing here restyles them.
+
+   ONE PALETTE. The `--site-*` names the design handoff asks for are declared
+   here as ALIASES of the canonical day tokens in design/day-kit.css (which are
+   the installed app's DayTheme, verbatim). No hex is invented below except the
+   night-flip surface, which has no app equivalent. The handoff's default accent
+   was "brick" #93231E; that exact value is the third palette this repo already
+   retired (see design/tokens.test.ts "one palette, not three"), so the site
+   accent is the handoff's other option — rust — which IS the canonical
+   --ksu-rust. Change --site-accent below if the owner wants brick back.
+
+   BEBAS TRAP: --font-site-display resolves to Bebas Neue, which ships a single
+   400 cut. With `font-synthesis: none` on :root, asking for 700/800 silently
+   falls back to a different face (Times on iOS). Every rule below that sets
+   the display family also pins font-weight: 400.
+   ========================================================================== */
+
+.ksu-site {
+  /* --- surfaces --- */
+  --site-ground: var(--ksu-paper);
+  --site-panel: var(--ksu-card);
+  --site-hair: color-mix(in srgb, var(--ksu-ink) 18%, transparent);
+  --site-hair-soft: color-mix(in srgb, var(--ksu-ink) 9%, transparent);
+  /* --- ink --- */
+  --site-text: var(--ksu-ink);
+  --site-text-soft: var(--ksu-ink-soft);
+  /* A third, lighter ink step the app has no equivalent for (colophon detail,
+     figure captions, footer meta). Derived from ink-soft, not a new hue. */
+  --site-text-mute: color-mix(in srgb, var(--ksu-ink-soft) 72%, var(--ksu-paper));
+  /* --- accent --- */
+  --site-accent: var(--ksu-rust);
+  --site-accent-hover: color-mix(in srgb, var(--ksu-rust) 82%, #000);
+  --site-on-accent: var(--ksu-on-rust);
+  /* --- premium / plaque material (the only dark surface on paper) --- */
+  --site-premium-bg: var(--ksu-olive);
+  --site-premium-edge: var(--ksu-olive-edge);
+  --site-premium-accent: var(--ksu-brass);
+  --site-plaque-text: #E9E2CC;
+  /* Store badges are lifted from Apple/Google's own art direction and stay a
+     dark plate on light — the Plaque material, not a new colour. */
+  --site-badge-bg: var(--ksu-olive);
+  --site-badge-text: var(--ksu-card);
+  /* --- type --- */
+  --font-site-display: var(--ksu-display);
+  --font-body: var(--ksu-body);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+  --site-h1-tracking: -.02em;
+  --site-h2-tracking: -.015em;
+  /* --- geometry --- */
+  --radius-site-panel: 10px;
+  --radius-site-modal: 14px;
+  --scrim-site: rgba(20, 22, 12, .62);
+  --site-col: min(1240px, calc(100% - 56px));
+
+  min-height: 100vh;
+  background: var(--site-ground);
+  color: var(--site-text);
+  font-family: var(--font-body);
+}
+
+/* The night flip. Same token semantics, inverted surface: olive ground, cream
+   ink, and rust lifted just enough to clear the dark plate (the handoff's
+   ACCENTS.rust.dark). */
+.ksu-site.is-dark {
+  --site-ground: #14160D;
+  --site-panel: var(--ksu-olive);
+  --site-hair: rgba(237, 231, 212, .16);
+  --site-hair-soft: rgba(237, 231, 212, .08);
+  --site-text: #EDE7D4;
+  --site-text-soft: #B7B79A;
+  --site-text-mute: #8A8B6C;
+  --site-accent: #C4633A;
+  --site-accent-hover: #D2743F;
+  --site-on-accent: #14160D;
+  --site-premium-bg: #0E1008;
+  --site-premium-accent: #C6A14F;
+  --site-badge-bg: #EDE7D4;
+  --site-badge-text: #14160D;
+  --scrim-site: rgba(8, 9, 5, .72);
+}
+
+.ksu-site a { color: inherit; text-decoration: none; }
+.ksu-site h1, .ksu-site h2, .ksu-site h3 { text-wrap: balance; }
+.ksu-site p { text-wrap: pretty; }
+
+/* Content column — one measure for the whole site. */
+.ksu-site-col { width: var(--site-col); margin-inline: auto; }
+
+/* ------------------------------------------------------------------- type */
+
+.ksu-site-mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.ksu-site-display {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  letter-spacing: var(--site-h2-tracking);
+  line-height: 1.02;
+}
+
+/* ----------------------------------------------------------------- header */
+
+.ksu-site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--site-ground) 88%, transparent);
+  backdrop-filter: saturate(1.2) blur(10px);
+  border-bottom: 1px solid var(--site-hair-soft);
+}
+.ksu-site-header-bar {
+  height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+/* The wordmark JPG carries ~30% baked-in cream padding top and bottom. Render
+   it at the handoff's 62px inside a shorter clip box so the glyphs fill and
+   read at brand scale inside a 74px bar. */
+.ksu-site-brand { display: inline-flex; align-items: center; flex-shrink: 0; height: 42px; overflow: hidden; }
+.ksu-site-brand img { height: 62px; width: auto; aspect-ratio: 1242 / 415; display: block; }
+.ksu-site.is-dark .ksu-site-brand { border-radius: 7px; }
+.ksu-site-foot .ksu-site-brand { height: 26px; }
+.ksu-site-foot .ksu-site-brand img { height: 38px; }
+
+.ksu-site-nav {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ksu-site-nav > a { color: var(--site-text-soft); transition: color .18s ease, border-color .18s ease; border-bottom: 1px solid transparent; }
+.ksu-site-nav > a:hover { color: var(--site-accent); border-bottom-color: var(--site-accent); }
+.ksu-site-nav > a[aria-current="page"] { color: var(--site-accent); }
+
+/* The Premium pill: brass diamond + label in an olive pill. A plain link out
+   to the existing planner route — no modal, no JS. */
+.ksu-site-premium {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--site-premium-accent) 60%, transparent);
+  border-radius: 999px;
+  background: var(--site-premium-bg);
+  color: var(--site-plaque-text);
+  transition: border-color .18s ease;
+}
+/* The pill is a plaque, not a nav link: it keeps the plaque's cream label, so
+   it must out-specify `.ksu-site-nav > a`, which sets --site-text-soft. */
+.ksu-site-nav > a.ksu-site-premium,
+.ksu-site-mobile-nav > a.ksu-site-premium { color: var(--site-plaque-text); border-bottom-color: color-mix(in srgb, var(--site-premium-accent) 60%, transparent); }
+.ksu-site-nav > a.ksu-site-premium:hover,
+.ksu-site-mobile-nav > a.ksu-site-premium:hover { color: var(--site-plaque-text); border-color: var(--site-premium-accent); }
+.ksu-site-premium .ksu-premium-mark { width: 7px; height: 7px; margin: 0; background: var(--site-premium-accent); }
+
+.ksu-site-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.ksu-site-header-stores { display: flex; gap: 8px; }
+.ksu-site-soon {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--site-accent);
+  padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--site-accent) 40%, transparent);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ksu-site-theme {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 9px;
+  border: 1px solid var(--site-hair);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--site-text-soft);
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease;
+}
+.ksu-site-theme:hover { color: var(--site-text); border-color: var(--site-text-mute); }
+.ksu-site-theme svg { width: 100%; height: 100%; display: block; }
+
+/* The centre nav hides under 1080px per the handoff. A marketing site with no
+   navigation at all on a phone is broken, so the same links (and the same
+   Premium pill) reappear as a scrolling strip under the bar. */
+.ksu-site-mobile-nav {
+  display: none;
+  align-items: center;
+  gap: 18px;
+  padding: 0 0 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.ksu-site-mobile-nav::-webkit-scrollbar { display: none; }
+.ksu-site-mobile-nav > a { color: var(--site-text-soft); }
+.ksu-site-mobile-nav > a[aria-current="page"] { color: var(--site-accent); }
+
+/* --------------------------------------------------------------- store badge */
+
+.ksu-site-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 14px 0 12px;
+  border: 1px solid color-mix(in srgb, var(--site-badge-text) 22%, transparent);
+  border-radius: 9px;
+  background: var(--site-badge-bg);
+  color: var(--site-badge-text);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.ksu-site-badge:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0, 0, 0, .22); }
+.ksu-site-badge:focus-visible { outline: 3px solid var(--site-accent); outline-offset: 3px; }
+.ksu-site-badge.lg { height: 56px; padding: 0 18px 0 16px; gap: 11px; border-radius: 11px; }
+.ksu-site-badge-glyph { width: 22px; height: 22px; flex: none; }
+.ksu-site-badge.lg .ksu-site-badge-glyph { width: 26px; height: 26px; }
+.ksu-site-badge-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
+.ksu-site-badge-txt small { font-size: 9.5px; letter-spacing: .02em; opacity: .82; }
+.ksu-site-badge-txt b { font-family: var(--font-site-display); font-weight: 400; font-size: 17px; letter-spacing: .02em; }
+.ksu-site-badge.lg .ksu-site-badge-txt small { font-size: 10px; }
+.ksu-site-badge.lg .ksu-site-badge-txt b { font-size: 19px; }
+.ksu-site-stores { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* ------------------------------------------------------------- morse rule */
+
+.ksu-site-rule { display: flex; align-items: center; gap: 18px; width: 100%; }
+.ksu-site-rule-track { flex: 1; height: 1px; background: var(--site-hair); }
+.ksu-site-code { display: flex; align-items: center; gap: 8px; }
+.ksu-site-code i { height: 5px; border-radius: 3px; background: var(--site-accent); display: block; }
+.ksu-site-code .dot { width: 5px; border-radius: 50%; }
+.ksu-site-code .dash { width: 26px; }
+.ksu-site-code .dash.long { width: 40px; }
+
+/* ----------------------------------------------------------- section head */
+
+.ksu-site-head { display: flex; flex-direction: column; gap: 16px; }
+.ksu-site-head-rule { display: flex; align-items: center; gap: 14px; }
+.ksu-site-kicker {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--site-accent);
+  white-space: nowrap;
+  margin: 0;
+}
+.ksu-site-head-rule i:first-of-type { flex: 1; height: 1px; background: var(--site-hair); }
+.ksu-site-head-bolt { width: 5px; height: 5px; background: var(--site-accent); border-radius: 1px; transform: rotate(45deg); }
+.ksu-site-head h1, .ksu-site-head h2 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 3.6vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 0;
+  max-width: 22ch;
+}
+.ksu-site-head p { margin: 0; max-width: 54ch; color: var(--site-text-soft); font-size: 1.02rem; line-height: 1.6; }
+
+/* --------------------------------------------------------- page intro copy */
+
+/* Opens a page when the section below it owns the bottom spacing. */
+.ksu-site-top { padding-top: clamp(48px, 6vw, 84px); }
+/* The kicker + oversized H1 + one-line sub opening (How it works). */
+.ksu-site-intro { padding-top: clamp(48px, 6vw, 84px); }
+.ksu-site-intro h1 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  line-height: 1.02;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 18px 0 0;
+  max-width: 18ch;
+}
+.ksu-site-intro > p:last-child { margin: 18px 0 0; max-width: 56ch; color: var(--site-text-soft); font-size: 1.08rem; line-height: 1.6; }
+
+/* Body section between an intro and the closer. */
+.ksu-site-body { padding-top: clamp(40px, 5vw, 64px); padding-bottom: clamp(52px, 7vw, 96px); }
+/* A section that owns both ends of its own vertical rhythm. */
+.ksu-site-block { padding-top: clamp(48px, 6vw, 84px); padding-bottom: clamp(56px, 7vw, 96px); }
+
+/* --------------------------------------------------------- hero (homepage) */
+
+.ksu-site-hero { position: relative; width: 100%; }
+.ksu-site-hero-frame { position: relative; width: 100%; height: clamp(480px, 56vw, 780px); overflow: hidden; }
+.ksu-site-hero-frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 42%;
+  display: block;
+}
+/* Radial scrim anchored upper-left, behind the text; plus a flat bottom fade. */
+.ksu-site-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(58% 62% at 16% 2%, rgba(20, 22, 12, .78) 0%, rgba(20, 22, 12, .56) 42%, rgba(20, 22, 12, .16) 70%, transparent 86%);
+}
+.ksu-site-hero-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(20, 22, 12, .4) 0%, rgba(20, 22, 12, 0) 22%);
+}
+.ksu-site-hero-text { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-start; }
+.ksu-site-hero-text > div { padding-top: clamp(10px, 2vw, 22px); }
+.ksu-site-hero-copy { margin-right: auto; max-width: 30ch; text-align: left; }
+.ksu-site-hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: #E7B48A;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  white-space: nowrap;
+}
+.ksu-site-hero-eyebrow i { width: 28px; height: 2px; background: #E7B48A; }
+.ksu-site-hero-copy h1 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 4.6vw, 4.2rem);
+  line-height: .92;
+  letter-spacing: var(--site-h1-tracking);
+  margin: 20px 0 0;
+  color: #F5EFDD;
+}
+.ksu-site-hero-copy h1 .accent { color: #E7B48A; }
+.ksu-site-hero-copy > p {
+  margin: 24px 0 0;
+  max-width: 28ch;
+  font-size: clamp(.98rem, 1.2vw, 1.08rem);
+  line-height: 1.6;
+  color: #F2EEE0;
+}
+.ksu-site-hero-copy > p strong { color: #FFFFFF; font-weight: 700; }
+
+/* --------------------------------------------------- colophon (spec strip) */
+
+.ksu-site-spec {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--site-hair);
+  border-bottom: 1px solid var(--site-hair);
+}
+.ksu-site-spec > div { padding: 18px 22px; }
+.ksu-site-spec > div + div { border-left: 1px solid var(--site-hair); }
+.ksu-site-spec dt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--site-accent);
+}
+.ksu-site-spec dd { margin: 7px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--site-text-mute); }
+
+/* ------------------------------------------------------ how it works steps */
+
+.ksu-site-steps { border-bottom: 1px solid var(--site-hair); }
+.ksu-site-step {
+  display: grid;
+  grid-template-columns: 92px 1fr 340px;
+  gap: clamp(20px, 3vw, 44px);
+  align-items: center;
+  padding: clamp(28px, 3.5vw, 40px) 0;
+  border-top: 1px solid var(--site-hair);
+}
+.ksu-site-step-n {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 3.4rem;
+  line-height: .9;
+  letter-spacing: var(--site-h2-tracking);
+  color: var(--site-accent);
+  margin: 0;
+}
+.ksu-site-step-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+  margin: 8px 0 0;
+}
+.ksu-site-step-body { max-width: 48ch; }
+.ksu-site-step-body h2 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: clamp(1.6rem, 2.6vw, 2.3rem);
+  line-height: 1.02;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 0;
+}
+.ksu-site-step-body p { margin: 14px 0 0; color: var(--site-text-soft); font-size: 1.05rem; line-height: 1.6; }
+.ksu-site-step-photo { aspect-ratio: 4 / 3; }
+
+/* ------------------------------------------------------------- photo slots */
+
+/* Until the real photography lands these frames hold the ratio and say what
+   belongs there — an honest placeholder beats a stock photo. */
+.ksu-site-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--site-hair);
+  border-radius: 8px;
+  background: var(--site-panel);
+}
+.ksu-site-slot > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ksu-site-slot > span {
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+  text-align: center;
+}
+
+/* ----------------------------------------------------------------- phones */
+
+.ksu-site-phones { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(20px, 3vw, 44px); margin-top: 44px; align-items: end; }
+.ksu-site-phone { margin: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.ksu-site-phone.stagger { margin-bottom: 30px; }
+.ksu-site-phone-bezel {
+  width: 100%;
+  aspect-ratio: 9 / 19;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--site-premium-accent) 50%, transparent);
+  border-radius: 26px;
+  background: var(--ksu-olive);
+}
+.ksu-site-phone-screen { position: relative; width: 100%; height: 100%; border-radius: 18px; overflow: hidden; background: var(--ksu-paper); }
+.ksu-site-phone-screen .ksu-site-slot { border: 0; border-radius: 0; }
+.ksu-site-phone figcaption {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+  text-align: center;
+}
+
+/* -------------------------------------------------------------- panel band */
+
+.ksu-site-band { margin-top: clamp(52px, 7vw, 88px); background: var(--site-panel); border-top: 1px solid var(--site-hair); border-bottom: 1px solid var(--site-hair); }
+.ksu-site-band > div { padding: clamp(44px, 6vw, 72px) 0; }
+.ksu-site-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; margin-top: 32px; background: var(--site-hair); border: 1px solid var(--site-hair); }
+.ksu-site-tile { background: var(--site-panel); padding: 26px; display: flex; flex-direction: column; gap: 12px; }
+.ksu-site-tile-ic { width: 32px; height: 32px; color: var(--site-accent); }
+.ksu-site-tile-ic svg { width: 100%; height: 100%; display: block; }
+.ksu-site-tile h3 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 1.2rem;
+  line-height: 1.02;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 0;
+}
+.ksu-site-tile p { margin: 0; color: var(--site-text-soft); font-size: .98rem; line-height: 1.55; }
+
+/* -------------------------------------------------------------- for clubs */
+
+.ksu-site-clubs { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(32px, 5vw, 72px); align-items: start; }
+.ksu-site-checklist { margin: 28px 0 0; padding: 0; list-style: none; }
+.ksu-site-checklist li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 14px;
+  align-items: baseline;
+  padding: 14px 0;
+  border-top: 1px solid var(--site-hair-soft);
+}
+.ksu-site-checklist li > span:first-child { color: var(--site-accent); font-family: var(--font-mono); font-size: 13px; }
+.ksu-site-checklist p { margin: 0; line-height: 1.5; }
+.ksu-site-checklist b { font-weight: 650; }
+.ksu-site-checklist em { color: var(--site-text-soft); font-style: normal; }
+.ksu-site-clubs-aside { display: flex; flex-direction: column; gap: 18px; }
+.ksu-site-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ksu-site-caption {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- ride ticket */
+
+/* The shared-plan artefact: a torn-stub ride card, the paper equivalent of the
+   ride row in the app. */
+.ksu-site-ticket {
+  border: 1px solid var(--site-hair);
+  border-radius: var(--radius-site-panel);
+  background: var(--site-panel);
+  overflow: hidden;
+}
+.ksu-site-ticket-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 22px 18px; }
+.ksu-site-ticket-top h3 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 1.55rem;
+  line-height: 1.04;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 0;
+}
+.ksu-site-ticket-when { margin: 8px 0 0; color: var(--site-text-soft); font-size: .92rem; }
+.ksu-site-ticket-riders { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.ksu-site-ticket-riders b { font-family: var(--font-site-display); font-weight: 400; font-size: 1.7rem; line-height: 1; color: var(--site-accent); }
+.ksu-site-ticket-riders span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--site-text-mute); }
+/* Perforation: the stub tear, drawn as a dashed hairline between rows. */
+.ksu-site-ticket-perf { height: 1px; margin: 0 22px; background: repeating-linear-gradient(90deg, var(--site-hair) 0 6px, transparent 6px 12px); }
+.ksu-site-ticket-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 16px 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+}
+.ksu-site-ticket-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--site-hair-soft);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--site-text);
+}
+
+/* ---------------------------------------------------------------- faq grid */
+
+.ksu-site-faq { display: grid; grid-template-columns: 1fr 1fr; column-gap: clamp(32px, 5vw, 72px); margin-top: 34px; }
+.ksu-site-faq > div { padding: 24px 0; border-top: 1px solid var(--site-hair); }
+.ksu-site-faq h2 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 1.4rem;
+  line-height: 1.06;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 0;
+}
+.ksu-site-faq p { margin: 10px 0 0; color: var(--site-text-soft); line-height: 1.6; max-width: 48ch; }
+
+/* ----------------------------------------------------------------- closer */
+
+.ksu-site-closer {
+  padding-bottom: clamp(56px, 7vw, 96px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ksu-site-closer.spaced { padding-top: clamp(52px, 7vw, 88px); }
+.ksu-site-closer h2 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: clamp(2rem, 4.2vw, 3.2rem);
+  line-height: 1.02;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 22px 0 0;
+  max-width: 18ch;
+}
+.ksu-site-closer .ksu-site-stores { justify-content: center; margin-top: 26px; }
+
+/* ----------------------------------------------------------------- footer */
+
+.ksu-site-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 0 34px;
+  border-top: 1px solid var(--site-hair);
+}
+.ksu-site-foot nav { display: flex; gap: 24px; font-size: 14px; color: var(--site-text-soft); }
+.ksu-site-foot nav a:hover { color: var(--site-accent); text-decoration: underline; }
+.ksu-site-copy {
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--site-hair-soft);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--site-text-mute);
+}
+
+/* ------------------------------------------------------------------ modal */
+
+.ksu-site-modal-bg { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 22px; background: var(--scrim-site); }
+.ksu-site-modal {
+  width: min(430px, 100%);
+  padding: 30px 30px 28px;
+  border: 1px solid var(--site-hair);
+  border-radius: var(--radius-site-modal);
+  background: var(--site-panel);
+  color: var(--site-text);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, .4);
+}
+.ksu-site-modal h2 {
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 1.8rem;
+  line-height: 1.04;
+  letter-spacing: var(--site-h2-tracking);
+  margin: 14px 0 10px;
+}
+.ksu-site-modal p { margin: 0; color: var(--site-text-soft); line-height: 1.6; }
+.ksu-site-modal button {
+  margin-top: 22px;
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--site-accent);
+  color: var(--site-on-accent);
+  font-family: var(--font-site-display);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: background .18s ease;
+}
+.ksu-site-modal button:hover { background: var(--site-accent-hover); }
+
+/* ------------------------------------------------------------- responsive */
+
+@media (max-width: 1080px) {
+  .ksu-site-nav { display: none; }
+  .ksu-site-mobile-nav { display: flex; }
+  /* Photo slot drops out; number + copy stay. */
+  .ksu-site-step { grid-template-columns: 72px 1fr; }
+  .ksu-site-step-photo { display: none; }
+}
+@media (max-width: 900px) {
+  .ksu-site { --site-col: min(1240px, calc(100% - 36px)); }
+  .ksu-site-spec { grid-template-columns: 1fr 1fr; }
+  .ksu-site-spec > div:nth-child(odd) { border-left: 0; }
+  .ksu-site-spec > div:nth-child(n + 3) { border-top: 1px solid var(--site-hair); }
+  .ksu-site-clubs, .ksu-site-faq, .ksu-site-tiles, .ksu-site-phones { grid-template-columns: 1fr; }
+  .ksu-site-phone { max-width: 320px; margin-inline: auto; }
+  .ksu-site-phone.stagger { margin-bottom: 0; }
+  .ksu-site-header-stores { display: none; }
+}
+@media (max-width: 720px) {
+  .ksu-site-spec { grid-template-columns: 1fr; }
+  .ksu-site-spec > div + div { border-left: 0; border-top: 1px solid var(--site-hair); }
+  .ksu-site-soon { display: none; }
+  .ksu-site-hero-frame { height: clamp(420px, 82vw, 620px); }
+  .ksu-site-ticket-top { flex-direction: column; }
+  .ksu-site-ticket-riders { flex-direction: row; align-items: baseline; gap: 8px; }
+}
