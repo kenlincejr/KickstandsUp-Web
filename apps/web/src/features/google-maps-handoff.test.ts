@@ -20,6 +20,38 @@ describe('Google Maps handoff', () => {
     expect(links[0]).toMatchObject({ segmentNumber: 1, segmentCount: 3, nextLegLabel: 'Point 4' });
   });
 
+  it('prefers a stop boundary over a via when a leg must split', () => {
+    // origin, stop, via, via, via, destination with limit 3: the count boundary
+    // (index 4) is a via, so the leg ends at the stop (index 1) instead.
+    const points: RouteWaypoint[] = [
+      point(0),
+      point(1),
+      { ...point(2), kind: 'via' },
+      { ...point(3), kind: 'via' },
+      { ...point(4), kind: 'via' },
+      point(5),
+    ];
+    const links = buildGoogleMapsHandoffs(points);
+    expect(links).toHaveLength(2);
+    expect(new URL(links[0].url).searchParams.get('destination')).toBe('35.010000,-80.010000');
+    expect(new URL(links[1].url).searchParams.get('origin')).toBe('35.010000,-80.010000');
+    expect(links[0].nextLegLabel).toBe('Point 1');
+  });
+
+  it('falls back to the count boundary when the window holds only vias', () => {
+    const points: RouteWaypoint[] = [
+      point(0),
+      { ...point(1), kind: 'via' },
+      { ...point(2), kind: 'via' },
+      { ...point(3), kind: 'via' },
+      { ...point(4), kind: 'via' },
+      point(5),
+    ];
+    const links = buildGoogleMapsHandoffs(points);
+    expect(links).toHaveLength(2);
+    expect(new URL(links[0].url).searchParams.get('destination')).toBe(new URL(links[1].url).searchParams.get('origin'));
+  });
+
   it('explains provider fidelity and browser waypoint limits instead of promising an exact road', () => {
     const points = [point(0), { ...point(1), kind: 'via' as const, displayName: 'Ranch Road 1431' }, point(2)];
     const [handoff] = buildGoogleMapsHandoffs(points);
