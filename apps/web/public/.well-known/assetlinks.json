@@ -4,7 +4,10 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.kickstandsup.ksu",
-      "sha256_cert_fingerprints": ["FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"]
+      "sha256_cert_fingerprints": [
+        "67:4F:86:22:2B:C5:69:52:06:CE:53:FC:17:CE:5A:2B:DF:8D:95:D5:29:FC:0F:19:AD:36:71:73:36:23:55:A1",
+        "D8:04:97:E5:D1:D4:98:AE:CB:04:D8:D5:55:EE:C2:96:19:5D:B2:1E:EA:92:DE:C5:8D:52:2C:22:6F:AB:D1:5A"
+      ]
     }
   }
 ]
