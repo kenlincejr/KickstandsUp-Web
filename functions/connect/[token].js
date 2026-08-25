@@ -12,8 +12,8 @@ export function onRequestGet(context) {
     title: 'KSU rider connection',
     eyebrow: 'Kickstands Up',
     heading: 'A rider wants to connect.',
-    body: 'Open KSU to send a trusted-rider request.',
-    assurance: 'A link only ever sends a request &mdash; the other rider still has to accept it. KSU never shares your location automatically.',
+    body: 'Open KSU to accept — one tap connects you.',
+    assurance: 'Opening a link never shares your location. You decide whether to connect, and you can remove a rider at any time.',
   });
 
   return new Response(page, { headers: handoffHeaders });
