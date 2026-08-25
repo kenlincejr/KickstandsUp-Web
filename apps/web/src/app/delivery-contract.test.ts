@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+// @ts-expect-error -- plain-JS Pages Function helper, shared with functions/.
+import { handoffHeaders, renderHandoffPage } from '../../../../lib/handoff-page.js';
+
 const publicDir = resolve(import.meta.dirname, '../../public');
 const repoDir = resolve(import.meta.dirname, '../../../..');
 
@@ -175,19 +178,96 @@ describe('Cloudflare delivery contract', () => {
   it('sets privacy headers on Function responses and keeps connection copy distinct', () => {
     const inviteFunction = repoFile('functions/invite/[token].js');
     const connectFunction = repoFile('functions/connect/[token].js');
+    // Both Functions now render through one shared builder, so the header set
+    // is asserted where it actually lives rather than twice over copy-pasted
+    // literals — the duplication is what let the two pages drift apart.
+    const shared = repoFile('lib/handoff-page.js');
 
+    expect(handoffHeaders['Cache-Control']).toBe('no-store');
+    expect(handoffHeaders['Referrer-Policy']).toBe('no-referrer');
+    expect(handoffHeaders['X-Frame-Options']).toBe('DENY');
+    expect(handoffHeaders['X-Robots-Tag']).toBe('noindex, nofollow');
+    expect(handoffHeaders['Permissions-Policy']).toBeTruthy();
     for (const source of [inviteFunction, connectFunction]) {
-      expect(source).toContain('"Cache-Control": "no-store"');
-      expect(source).toContain('"Content-Security-Policy"');
-      expect(source).toContain('"Permissions-Policy"');
-      expect(source).toContain('"Referrer-Policy": "no-referrer"');
-      expect(source).toContain('"X-Frame-Options": "DENY"');
-      expect(source).toContain('"X-Robots-Tag": "noindex, nofollow"');
+      expect(source).toContain('handoffHeaders');
     }
+
+    // The response forbids scripts outright, which is exactly why the app-open
+    // affordance below has to be a plain anchor. If a script-src is ever added
+    // here, revisit that decision deliberately rather than by accident.
+    expect(handoffHeaders['Content-Security-Policy']).toContain("default-src 'none'");
+    expect(handoffHeaders['Content-Security-Policy']).not.toContain('script-src');
+    expect(shared).not.toMatch(/<script/i);
 
     expect(inviteFunction).toContain('invited to a KSU ride');
     expect(connectFunction).toContain('A rider wants to connect');
     expect(connectFunction).not.toContain('invited to a KSU ride');
+  });
+
+  it('gives a rider a real way into the app from a link an in-app browser opened', () => {
+    // The defect this covers (2026-08-25): the token was never read — the
+    // handler took no params at all — so the page could not offer any app link,
+    // and a rider who opened a KSU link inside Messenger's WebView (which honors
+    // neither App Links nor Universal Links) hit a dead end with no next step.
+    for (const route of ['connect', 'invite'] as const) {
+      const token = 'a'.repeat(43);
+      const android = renderHandoffPage({
+        route,
+        token,
+        userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile',
+        noApp: false,
+        title: 't', eyebrow: 'e', heading: 'h', body: 'b', assurance: 'a',
+      });
+      expect(android).toContain('Open in KSU');
+      expect(android).toContain(`intent://rideksu.com/${route}/${token}`);
+      expect(android).toContain('package=com.kickstandsup.ksu');
+      // The Android fallback must come back here, not to a store listing: KSU
+      // has no public listing yet, so a store URL would dead-end.
+      expect(android).toContain(encodeURIComponent(`https://rideksu.com/${route}/${token}?noapp=1`));
+      expect(android).not.toContain('play.google.com');
+
+      const ios = renderHandoffPage({
+        route,
+        token,
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile',
+        noApp: false,
+        title: 't', eyebrow: 'e', heading: 'h', body: 'b', assurance: 'a',
+      });
+      expect(ios).toContain(`ksu://${route}/${token}`);
+      expect(ios).not.toContain('intent://');
+      expect(ios).not.toContain('apps.apple.com');
+    }
+  });
+
+  it('never emits an app link it cannot honor, and never reflects an unvalidated token', () => {
+    const androidUa = 'Mozilla/5.0 (Linux; Android 14) Chrome/126 Mobile';
+    const base = { route: 'connect' as const, noApp: false, title: 't', eyebrow: 'e', heading: 'h', body: 'b', assurance: 'a' };
+
+    // Desktop: no app link can succeed, so don't pretend one will.
+    const desktop = renderHandoffPage({ ...base, token: 'a'.repeat(43), userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126' });
+    expect(desktop).not.toContain('Open in KSU');
+    expect(desktop).toContain('Open this link on the phone');
+
+    // The Android intent fallback returns here with ?noapp=1 — that rider needs
+    // the install answer, not the button that just failed for them.
+    const noApp = renderHandoffPage({ ...base, token: 'a'.repeat(43), userAgent: androidUa, noApp: true });
+    expect(noApp).not.toContain('Open in KSU');
+    expect(noApp).toContain('limited testing');
+
+    // A malformed token must never reach an href or the document. The strict
+    // charset check is the whole defense — these Functions have no escaping
+    // framework behind them.
+    for (const hostile of ['"><img src=x onerror=alert(1)>', '../../etc/passwd', 'short', '']) {
+      const page = renderHandoffPage({ ...base, token: hostile, userAgent: androidUa });
+      expect(page).not.toContain('Open in KSU');
+      expect(page).not.toContain('intent://');
+      expect(page).not.toContain('<img');
+      expect(page).not.toContain('onerror');
+    }
+
+    // Legacy UUID links stay redeemable — same contract the app's parser keeps.
+    const legacy = renderHandoffPage({ ...base, token: '3f2504e0-4f89-11d3-9a0c-0305e82c3301', userAgent: androidUa });
+    expect(legacy).toContain('Open in KSU');
   });
   it('registers the trip-authoring surface: routes, nav, and the URL ownership table', () => {
     const routes = repoFile('apps/web/src/app/app.tsx');
